@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cleanyourdroid Optimization Report &bull; Poco 23049PCD8G</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(20, 26, 42, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(255, 255, 255, 0.12);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.15);
+      --sky: #38bdf8;
+      --indigo: #818cf8;
+      --rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .container {
+      max-width: 1100px;
+      width: 100%;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #041017;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .brand span.tagline {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      display: block;
+    }
+    .badge-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+    .badge-success {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .badge-sky {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+      color: var(--sky);
+    }
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.25rem;
+    }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      border-color: var(--card-hover);
+    }
+    .col-4 { grid-column: span 4; }
+    .col-6 { grid-column: span 6; }
+    .col-8 { grid-column: span 8; }
+    .col-12 { grid-column: span 12; }
+    @media (max-width: 860px) {
+      .col-4, .col-6, .col-8 { grid-column: span 12; }
+    }
+    .card-title {
+      font-size: 0.8125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .kpi-value {
+      font-size: 2.75rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 0.5rem;
+    }
+    .kpi-delta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+    }
+    .kpi-delta.positive {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+    }
+    .kpi-subtext {
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      margin-top: 0.5rem;
+    }
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+    .spec-item {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .spec-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .spec-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      margin-top: 0.5rem;
+    }
+    th {
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 500;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    td {
+      padding: 0.5rem 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .font-mono { font-family: var(--font-mono); }
+    .text-right { text-align: right; }
+    .text-emerald { color: var(--emerald); }
+    .chips-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    .chip {
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.2);
+      color: #fda4af;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .chip-more {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--card-border);
+      color: var(--text-muted);
+    }
+    footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--card-border);
+      padding-top: 1.5rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    footer a {
+      color: var(--sky);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo-icon">&#10003;</div>
+        <div>
+          <h1>cleanyourdroid</h1>
+          <span class="tagline">Rootless Agentic Android Debloater & System Optimizer</span>
+        </div>
+      </div>
+      <div class="badge-bar">
+        <span class="badge badge-success">&#9679; 100% Rootless</span>
+        <span class="badge badge-sky">&#10003; Reversible (restore.sh)</span>
+        <span class="badge">2026-10-24</span>
+      </div>
+    </header>
+
+    <div class="bento-grid">
+      <!-- KPI 1: Debloated Packages -->
+      <div class="card col-4">
+        <div class="card-title">Packages Eliminated</div>
+        <div class="kpi-value text-emerald">-15</div>
+        <div>
+          <span class="kpi-delta positive">&darr; 731 &rarr; 716 active</span>
+        </div>
+        <p class="kpi-subtext">Safe zero-loss debloat via ADB user-0 package manager.</p>
+      </div>
+
+      <!-- KPI 2: Active RAM Freed -->
+      <div class="card col-4">
+        <div class="card-title">Active RAM Freed</div>
+        <div class="kpi-value text-emerald">+655.9 <span style="font-size:1.25rem; font-weight:600;">MB</span></div>
+        <div>
+          <span class="kpi-delta positive">&darr; 6788.9 MB &rarr; 6133.0 MB used</span>
+        </div>
+        <p class="kpi-subtext">Freed from persistent background OEM services & daemons.</p>
+      </div>
+
+      <!-- KPI 3: Available RAM -->
+      <div class="card col-4">
+        <div class="card-title">Available RAM Buffer</div>
+        <div class="kpi-value" style="color:var(--sky);">9121.4 <span style="font-size:1.25rem; font-weight:600;">MB</span></div>
+        <div>
+          <span class="badge">Total Physical: 11160.0 MB</span>
+        </div>
+        <p class="kpi-subtext">Healthy memory headroom with package caches trimmed.</p>
+      </div>
+
+      <!-- Device Spec Overview -->
+      <div class="card col-6">
+        <div class="card-title">Device Specifications</div>
+        <div class="spec-grid">
+          <div class="spec-item">
+            <div class="spec-label">Device Model</div>
+            <div class="spec-val">Poco 23049PCD8G (marble)</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Processor / SoC</div>
+            <div class="spec-val">SM7475</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Android OS</div>
+            <div class="spec-val">Android 15</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">OS Build</div>
+            <div class="spec-val font-mono" style="font-size:0.8rem;">AQ3A.250226.002</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Tuning Applied -->
+      <div class="card col-6">
+        <div class="card-title">System Optimizations Applied</div>
+        <div class="spec-grid">
+          <div class="spec-item">
+            <div class="spec-label">ART Compilation</div>
+            <div class="spec-val text-emerald">&#10003; bg-dexopt-job completed</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Package Cache Trim</div>
+            <div class="spec-val text-emerald">&#10003; pm trim-caches 999G</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Animation Tuning</div>
+            <div class="spec-val text-emerald">&#10003; Window & Animator @ 0.5x</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-label">Reversibility</div>
+            <div class="spec-val text-emerald">&#10003; ./backups/restore.sh generated</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Removed Packages List -->
+      <div class="card col-12">
+        <div class="card-title">
+          <span>Decommissioned Packages & Telemetry (15 Total)</span>
+          <span class="badge badge-success">No Data Wiped (-k retained)</span>
+        </div>
+        <div class="chips-wrapper">
+          <span class='chip'>cn.wps.xiaomi.abroad.lite</span><span class='chip'>com.facebook.appmanager</span><span class='chip'>com.facebook.services</span><span class='chip'>com.facebook.system</span><span class='chip'>com.mi.globalbrowser</span><span class='chip'>com.miui.analytics</span><span class='chip'>com.miui.bugreport</span><span class='chip'>com.miui.msa.global</span><span class='chip'>com.miui.player</span><span class='chip'>com.miui.videoplayer</span><span class='chip'>com.miui.yellowpage</span><span class='chip'>com.xiaomi.glgm</span><span class='chip'>com.xiaomi.mipicks</span><span class='chip'>com.xiaomi.payment</span><span class='chip'>com.yandex.preinstallsatellite</span>
+        </div>
+      </div>
+
+      <!-- Top RAM Consumers (Before vs After) -->
+      <div class="card col-6">
+        <div class="card-title">Top Memory Consuming Processes (Before)</div>
+        <table>
+          <thead>
+            <tr><th>Process</th><th class="text-right">PSS (MB)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class='font-mono'>com.mi.android.globallauncher</td><td class='text-right font-mono text-emerald'>554.8 MB</td></tr>
+<tr><td class='font-mono'>system</td><td class='text-right font-mono text-emerald'>462.8 MB</td></tr>
+<tr><td class='font-mono'>com.radolyn.ayugram</td><td class='text-right font-mono text-emerald'>302.0 MB</td></tr>
+<tr><td class='font-mono'>com.tencent.mm</td><td class='text-right font-mono text-emerald'>277.7 MB</td></tr>
+<tr><td class='font-mono'>com.android.systemui</td><td class='text-right font-mono text-emerald'>270.4 MB</td></tr>
+<tr><td class='font-mono'>com.openai.chatgpt</td><td class='text-right font-mono text-emerald'>217.1 MB</td></tr>
+<tr><td class='font-mono'>vendor.qti.camera.provider@2.7-service_64</td><td class='text-right font-mono text-emerald'>209.4 MB</td></tr>
+<tr><td class='font-mono'>com.google.android.gms</td><td class='text-right font-mono text-emerald'>194.5 MB</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card col-6">
+        <div class="card-title">Top Memory Consuming Processes (After)</div>
+        <table>
+          <thead>
+            <tr><th>Process</th><th class="text-right">PSS (MB)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class='font-mono'>com.mi.android.globallauncher</td><td class='text-right font-mono text-emerald'>534.6 MB</td></tr>
+<tr><td class='font-mono'>system</td><td class='text-right font-mono text-emerald'>450.4 MB</td></tr>
+<tr><td class='font-mono'>com.radolyn.ayugram</td><td class='text-right font-mono text-emerald'>299.9 MB</td></tr>
+<tr><td class='font-mono'>com.oceanwing.soundcore</td><td class='text-right font-mono text-emerald'>290.7 MB</td></tr>
+<tr><td class='font-mono'>com.tencent.mm</td><td class='text-right font-mono text-emerald'>250.1 MB</td></tr>
+<tr><td class='font-mono'>com.android.systemui</td><td class='text-right font-mono text-emerald'>232.0 MB</td></tr>
+<tr><td class='font-mono'>com.openai.chatgpt</td><td class='text-right font-mono text-emerald'>190.6 MB</td></tr>
+<tr><td class='font-mono'>com.google.android.gms</td><td class='text-right font-mono text-emerald'>187.5 MB</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>
+      <div>Generated by <strong>cleanyourdroid</strong> &bull; Open-source Android Optimizer</div>
+      <div>Zero-Blindness Policy &bull; <a href="https://github.com/Gathin23/cleanyourtv" target="_blank" rel="noreferrer">Inspired by cleanyourtv</a></div>
+    </footer>
+  </div>
+</body>
+</html>

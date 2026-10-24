@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Exhaustive blacklist of critical Android and OEM packages that must NEVER be uninstalled or disabled. Touching these packages causes bootloops, soft-bricks, broken telephony, or unusable system UI.",
+  "categories": {
+    "global": [
+      {
+        "package": "android",
+        "name": "Android System",
+        "risk_level": "BOOTLOOP",
+        "reason": "Core Android OS framework and binder IPC backbone. Immediate kernel panic / bootloop."
+      },
+      {
+        "package": "com.android.systemui",
+        "name": "System UI",
+        "risk_level": "BOOTLOOP",
+        "reason": "Renders status bar, quick settings, navigation, and lockscreen. Disabling drops phone into crash loop."
+      },
+      {
+        "package": "com.android.phone",
+        "name": "Phone Services",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Handles cellular radio, baseband RIL interface, and emergency calling. Total loss of cellular functionality."
+      },
+      {
+        "package": "com.android.providers.telephony",
+        "name": "Telephony Provider",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Database for SMS, MMS, APNs, and SIM card carrier profiles. Renders mobile data and SMS completely non-functional."
+      },
+      {
+        "package": "com.android.server.telecom",
+        "name": "Telecom Server",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Audio routing for calls and emergency dialer management."
+      },
+      {
+        "package": "com.android.settings",
+        "name": "Settings",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "System settings master activity and preferences provider. Disabling locks user out of device configuration."
+      },
+      {
+        "package": "com.android.settings.intelligence",
+        "name": "Settings Intelligence",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Settings search index and preference provider on Android 10+."
+      },
+      {
+        "package": "com.android.packageinstaller",
+        "name": "Package Installer (AOSP)",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Manages APK installation, runtime permissions dialogs, and package validation."
+      },
+      {
+        "package": "com.google.android.packageinstaller",
+        "name": "Package Installer (Google)",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Modern Google package installer and permission controller. Disabling prevents any app installs or permission grants."
+      },
+      {
+        "package": "com.google.android.permissioncontroller",
+        "name": "Permission Controller",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Android 10+ runtime permission engine. Disabling breaks all app permission checks and causes UI freezes."
+      },
+      {
+        "package": "com.google.android.gms",
+        "name": "Google Play Services",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Core Google services, SafetyNet, Play Integrity, FCM push notifications, location providers, and in-app billing."
+      },
+      {
+        "package": "com.google.android.gsf",
+        "name": "Google Services Framework",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Handles communication between Google servers and Play Services. Removing breaks Google Account authentication."
+      },
+      {
+        "package": "com.google.android.inputmethod.latin",
+        "name": "Gboard",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Primary virtual keyboard on most Android builds. Disabling without another active IME locks user out upon password entry."
+      },
+      {
+        "package": "com.android.inputmethod.latin",
+        "name": "AOSP Keyboard",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default fallback AOSP IME."
+      },
+      {
+        "package": "com.touchtype.swiftkey",
+        "name": "Microsoft SwiftKey",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default keyboard on some OEM builds (e.g. Huawei/Samsung/Honor). Never remove if active keyboard."
+      },
+      {
+        "package": "com.android.providers.media",
+        "name": "Media Provider",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Indexes internal storage files, photos, audio, and documents. Disabling breaks file pickers and gallery."
+      },
+      {
+        "package": "com.google.android.providers.media.module",
+        "name": "Media Provider Mainline",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Project Mainline modular media framework. Disabling breaks storage access framework (SAF)."
+      },
+      {
+        "package": "com.android.providers.downloads",
+        "name": "Download Manager",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Core Android download provider. Disabling halts browser downloads, Play Store updates, and OTA downloads."
+      },
+      {
+        "package": "com.android.keychain",
+        "name": "Key Chain",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Stores cryptographic credentials and SSL certificates for system and banking applications."
+      }
+    ],
+    "xiaomi_hyperos": [
+      {
+        "package": "com.miui.securitycenter",
+        "name": "Xiaomi Security Center",
+        "risk_level": "BOOTLOOP",
+        "reason": "CRITICAL: Hardcoded dependency across HyperOS/MIUI frameworks. Manages runtime security, IPC validation, and permission checks. Disabling causes an immediate 100% hard bootloop."
+      },
+      {
+        "package": "com.xiaomi.finddevice",
+        "name": "Xiaomi Find Device",
+        "risk_level": "BOOTLOOP",
+        "reason": "CRITICAL: Validated on boot by Xiaomi TrustZone keystore and lockscreen daemon. Disabling triggers continuous crash loops on restart."
+      },
+      {
+        "package": "com.miui.powerkeeper",
+        "name": "Xiaomi PowerKeeper",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Controls display refresh rate switching (120Hz/90Hz/60Hz dynamic profiles) and thermal governors. Disabling caps display at 60Hz permanently and breaks battery health settings."
+      },
+      {
+        "package": "com.xiaomi.xmsf",
+        "name": "Xiaomi Service Framework (XMSF)",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Provides Xiaomi Cloud sync, Mi Push token distribution, and theme authentication. Removing breaks Xiaomi push notifications and account auth."
+      },
+      {
+        "package": "com.mi.android.globallauncher",
+        "name": "POCO Launcher",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default home launcher and recent apps gesture provider for POCO devices. Disabling without a third-party launcher active renders device completely unnavigable."
+      },
+      {
+        "package": "com.miui.home",
+        "name": "MIUI Home Launcher",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default launcher and gesture navigation handler on Xiaomi/Redmi HyperOS. Disabling breaks full-screen gestures and recent apps view."
+      },
+      {
+        "package": "com.miui.systemui.carriers.overlay",
+        "name": "MIUI Carrier Overlay",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "SystemUI resource overlay for HyperOS status bar and SIM card indicators. Disabling triggers SystemUI NullPointer crashes."
+      },
+      {
+        "package": "com.miui.guardprovider",
+        "name": "Security Guard Provider",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Antivirus definitions engine bound directly to com.miui.securitycenter. Removing causes periodic Security Center exception dialogs."
+      },
+      {
+        "package": "com.miui.securityadd",
+        "name": "Security Center Additions",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "IPC bridge for Security Center app permissions and biometric authentication hooks."
+      },
+      {
+        "package": "com.xiaomi.account",
+        "name": "Xiaomi Account",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Required for device activation after reboots, bootloader unlocking authorization, and SIM card verification."
+      },
+      {
+        "package": "com.miui.core",
+        "name": "MIUI Core System Resources",
+        "risk_level": "BOOTLOOP",
+        "reason": "Shared styles, drawables, and themes for all HyperOS system dialogs. Removing induces immediate crash loop."
+      }
+    ],
+    "samsung_oneui": [
+      {
+        "package": "com.sec.android.app.launcher",
+        "name": "One UI Home",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default launcher and recent apps overview. Disabling without another launcher brick-locks the desktop."
+      },
+      {
+        "package": "com.samsung.android.knox.containercore",
+        "name": "Knox Core Container",
+        "risk_level": "BOOTLOOP",
+        "reason": "Knox hardware security subsystem. Disabling triggers hardware key attestation failure on boot."
+      },
+      {
+        "package": "com.samsung.android.incallui",
+        "name": "Samsung In-Call UI",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Renders phone call screen on One UI. Disabling causes silent incoming calls with no way to answer."
+      },
+      {
+        "package": "com.sec.android.app.SecSetupWizard",
+        "name": "Samsung Setup Wizard",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Handles initial setup and post-OTA configuration. Disabling before completion locks user out."
+      },
+      {
+        "package": "com.samsung.android.biometrics.service",
+        "name": "Samsung Biometrics Service",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Fingerprint and Face Unlock hardware daemon. Disabling bricks lockscreen authentication."
+      },
+      {
+        "package": "com.samsung.android.spay",
+        "name": "Samsung Pay Core Framework",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Tied into Knox key store. On older One UI builds, removing cause intermittent Knox security warnings."
+      },
+      {
+        "package": "com.samsung.android.SettingsReceiver",
+        "name": "Samsung Settings Receiver",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Broadcast receiver for One UI global settings updates. Disabling breaks quick settings toggles."
+      },
+      {
+        "package": "com.samsung.android.honeyboard",
+        "name": "Samsung Keyboard",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default Samsung keyboard. Never disable unless Gboard or another IME is set as default."
+      }
+    ],
+    "bbk_coloros": [
+      {
+        "package": "com.oppo.launcher",
+        "name": "ColorOS Launcher",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default home screen and recent apps gesture coordinator on Oppo/Realme/OnePlus ColorOS/OxygenOS."
+      },
+      {
+        "package": "com.coloros.safecenter",
+        "name": "ColorOS Security Center",
+        "risk_level": "BOOTLOOP",
+        "reason": "Core security manager and permission engine on BBK devices. Removing causes bootloop on reboot."
+      },
+      {
+        "package": "com.oplus.battery",
+        "name": "Oplus Battery Service",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Manages SuperVOOC fast charging curves and thermal limits. Removing drops charging speed and breaks battery stats."
+      },
+      {
+        "package": "com.oplus.securitypermission",
+        "name": "Oplus Security Permission",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Handles USB debugging, app installation authorizations, and rootless ADB security."
+      },
+      {
+        "package": "com.coloros.wirelesssettings",
+        "name": "ColorOS Wireless Settings",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Manages Wi-Fi, Bluetooth, and cellular network preference handoffs."
+      },
+      {
+        "package": "com.oplus.athena",
+        "name": "Oplus Athena Process Manager",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Low-level memory and process manager. Disabling causes unstable process lifecycle and UI freezes."
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+# Backups directory and generated reports
+backups/
+*.txt
+before.json
+after.json
+*_before.*
+*_after.*
+*.sh
+
+# Platform tools binaries
+tools/platform-tools/
+*.zip
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Editor and OS artifacts
+.env
+*.env
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary logs
+*.log
+*.tmp

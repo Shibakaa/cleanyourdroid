@@ -1,0 +1,465 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Curated database of safe-to-remove bloatware, tracking daemons, adware engines, and hidden background installers across Android OEM skins.",
+  "categories": {
+    "ads_and_telemetry": [
+      {
+        "package": "com.miui.msa.global",
+        "name": "MIUI System Ads (MSA Global)",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Xiaomi's primary background ad-push service. Injects promoted banner ads into system apps and settings.",
+        "impact": "Eliminates system-wide banner ads and reduces background HTTP polling."
+      },
+      {
+        "package": "com.miui.analytics",
+        "name": "MIUI Analytics",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Logs app launch frequencies, user screen time, and hardware telemetry back to Xiaomi data centers.",
+        "impact": "Stops background tracking wake-locks and reduces network bandwidth."
+      },
+      {
+        "package": "com.xiaomi.joyose",
+        "name": "Xiaomi Joyose Game / Telemetry Daemon",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "optional_with_tradeoff",
+        "description": "Background service that manages OEM game throttling, SMS push telemetry, and sports data. NOTE: Removing this unlocks thermal headroom and raises benchmark/gaming FPS, but device may run warmer under heavy continuous load.",
+        "impact": "Unlocks sustained performance in games; disables Xiaomi ad telemetry hooks."
+      },
+      {
+        "package": "com.miui.bugreport",
+        "name": "MIUI Bug Report & Feedback",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Crash logging and feedback telemetry daemon that frequently uploads stack traces.",
+        "impact": "Saves battery by stopping background log uploads."
+      },
+      {
+        "package": "com.miui.Hybrid",
+        "name": "Miui Quick Apps (Hybrid)",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "HTML5 quick app launcher framework frequently abused to serve interstitial ads and bypass app store security.",
+        "impact": "Closes a major advertising and tracking vector."
+      },
+      {
+        "package": "com.miui.hybrid.accessory",
+        "name": "Miui Quick Apps Accessory",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Companion daemon for Miui Quick Apps ad runtime.",
+        "impact": "Prevents background startup of quick apps service."
+      },
+      {
+        "package": "com.aura.oobe.xiaomi",
+        "name": "Digital Turbine / Aura OOBE (Xiaomi)",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Carrier and OEM bloatware distribution platform that silently downloads sponsored apps during setup and updates.",
+        "impact": "Completely prevents silent background sponsored app installations."
+      },
+      {
+        "package": "com.ironsource.aura.xiaomi",
+        "name": "IronSource Aura Daemon",
+        "oem": "xiaomi_hyperos",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Third-party ad and app recommendation engine integrated into device setup.",
+        "impact": "Stops unwanted ad SDK activity and app recommendations."
+      },
+      {
+        "package": "com.samsung.android.app.spage",
+        "name": "Samsung Free / Bixby Home",
+        "oem": "samsung_oneui",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "-1 screen aggregator on One UI filled with sponsored articles, gaming ads, and video promotions.",
+        "impact": "Frees memory and removes clutter from home screen launcher."
+      },
+      {
+        "package": "com.samsung.android.rubin.app",
+        "name": "Samsung Customization Service (Rubin)",
+        "oem": "samsung_oneui",
+        "category": "ads_and_telemetry",
+        "recommendation": "safe_removal",
+        "description": "Analyzes device usage patterns, location, and app history to serve personalized advertising.",
+        "impact": "Eliminates cross-app tracking on Samsung devices."
+      },
+      {
+        "package": "com.google.android.apps.tachyon",
+        "name": "Google Meet (Duo Preinstall)",
+        "oem": "global",
+        "category": "ads_and_telemetry",
+        "recommendation": "user_discretion",
+        "description": "Pre-installed Google video calling app. Safe to remove if user uses WhatsApp, Telegram, or Zoom.",
+        "impact": "Frees RAM and background sync cycles."
+      },
+      {
+        "package": "com.facebook.katana",
+        "name": "Facebook Client Preinstall",
+        "oem": "global",
+        "category": "ads_and_telemetry",
+        "recommendation": "user_discretion",
+        "description": "Factory preloaded Facebook app. Often holds background wake-locks.",
+        "impact": "Eliminates persistent background memory footprint."
+      },
+      {
+        "package": "com.facebook.orca",
+        "name": "Facebook Messenger Preinstall",
+        "oem": "global",
+        "category": "ads_and_telemetry",
+        "recommendation": "user_discretion",
+        "description": "Factory preloaded Messenger app.",
+        "impact": "Frees RAM and background push connections."
+      }
+    ],
+    "hidden_installers": [
+      {
+        "package": "com.facebook.system",
+        "name": "Facebook App Installer",
+        "oem": "global",
+        "category": "hidden_installers",
+        "recommendation": "safe_removal",
+        "description": "System-privileged installer allowing Meta apps to download and install updates silently outside the Google Play Store.",
+        "impact": "Prevents unauthorized background app updates and persistent Meta telemetry."
+      },
+      {
+        "package": "com.facebook.appmanager",
+        "name": "Facebook App Manager",
+        "oem": "global",
+        "category": "hidden_installers",
+        "recommendation": "safe_removal",
+        "description": "Background service that manages Meta asset caches and sideloads partner apps.",
+        "impact": "Terminates unnecessary persistent background daemon."
+      },
+      {
+        "package": "com.facebook.services",
+        "name": "Facebook Services",
+        "oem": "global",
+        "category": "hidden_installers",
+        "recommendation": "safe_removal",
+        "description": "Framework layer connecting Android system events to Meta telemetry.",
+        "impact": "Stops background analytics transmission to Meta."
+      },
+      {
+        "package": "com.xiaomi.mipicks",
+        "name": "Xiaomi GetApps Store",
+        "oem": "xiaomi_hyperos",
+        "category": "hidden_installers",
+        "recommendation": "safe_removal",
+        "description": "Xiaomi's secondary proprietary app store. Continuously pushes promotional app install notifications and attempts silent APK downloads.",
+        "impact": "Eliminates spam notifications and background APK verification daemons."
+      },
+      {
+        "package": "com.heytap.market",
+        "name": "ColorOS App Market",
+        "oem": "bbk_coloros",
+        "category": "hidden_installers",
+        "recommendation": "safe_removal",
+        "description": "Oppo/Realme/OnePlus preinstalled app market with heavy promotional push notifications.",
+        "impact": "Stops spam alerts and background app update checks."
+      },
+      {
+        "package": "com.sec.android.easyMover.Agent",
+        "name": "Samsung Smart Switch Agent",
+        "oem": "samsung_oneui",
+        "category": "hidden_installers",
+        "recommendation": "user_discretion",
+        "description": "Background stub for Samsung Smart Switch device migration. Unneeded once phone is initially set up.",
+        "impact": "Frees background services."
+      },
+      {
+        "package": "com.samsung.android.app.omcagent",
+        "name": "Samsung OMC Agent",
+        "oem": "samsung_oneui",
+        "category": "hidden_installers",
+        "recommendation": "user_discretion",
+        "description": "Open Market Customization daemon that checks for carrier-specific bloatware profiles.",
+        "impact": "Prevents carrier-enforced silent bloatware re-installs."
+      }
+    ],
+    "oem_bloat": [
+      {
+        "package": "com.miui.android.fashiongallery",
+        "name": "Wallpaper Carousel (FashionGallery)",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Lockscreen wallpaper cycler that pulls sponsored ad content, clickbait news, and commercial images directly onto lockscreen.",
+        "impact": "Removes intrusive lockscreen ads and saves cellular data."
+      },
+      {
+        "package": "com.mi.globalbrowser",
+        "name": "Mi Browser Pro",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Xiaomi's proprietary Chromium fork with built-in trending feeds, sponsored shortcuts, and search telemetry.",
+        "impact": "Frees ~150MB of storage and removes privacy-invasive browsing hooks."
+      },
+      {
+        "package": "com.xiaomi.glgm",
+        "name": "Xiaomi Game Center",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Aggressive game store with pay-to-win recommendations and persistent promotional notification banners.",
+        "impact": "Stops game-related push notification spam."
+      },
+      {
+        "package": "com.miui.yellowpage",
+        "name": "Xiaomi Yellow Pages",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Caller ID service integrated with Chinese/Indian commercial databases. Intercepts incoming call queries to serve business directory ads.",
+        "impact": "Protects call privacy and eliminates dialer business ads."
+      },
+      {
+        "package": "com.miui.videoplayer",
+        "name": "Mi Video",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Default media player heavily modified to push trending online video ads, adult dating banners, and continuous notifications.",
+        "impact": "Eliminates video ad spam; replace with VLC or Just Player."
+      },
+      {
+        "package": "com.miui.player",
+        "name": "Mi Music",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Default audio player bundled with streaming store promotions and banner advertisements.",
+        "impact": "Frees RAM and removes audio ad prompts; replace with Musicolet or Retro Music."
+      },
+      {
+        "package": "com.xiaomi.payment",
+        "name": "Mi Pay Framework",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Xiaomi's proprietary mobile payment framework (primarily used in China/India). Unnecessary if using Google Wallet.",
+        "impact": "Stops unused background payment daemons."
+      },
+      {
+        "package": "com.mipay.wallet.in",
+        "name": "Mi Credit / Wallet India",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Instant loan and credit card advertisement utility bundled into Indian/Global ROMs.",
+        "impact": "Stops predatory loan notification popups."
+      },
+      {
+        "package": "com.miui.cleanmaster",
+        "name": "Clean Master Definition Engine",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Legacy Cheetah Mobile cleaning definitions embedded into MIUI cleaner.",
+        "impact": "Stops telemetry reporting to Cheetah Mobile servers."
+      },
+      {
+        "package": "com.miui.weather2",
+        "name": "Mi Weather",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "user_discretion",
+        "description": "Default weather app containing sponsored news articles and animated ad cards.",
+        "impact": "Removes sponsored content in weather feeds."
+      },
+      {
+        "package": "com.miui.notes",
+        "name": "Xiaomi Notes",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "user_discretion",
+        "description": "Stock note taking app. Safe to remove if using Google Keep, Obsidian, or Notion.",
+        "impact": "Removes unused app and cloud sync overhead."
+      },
+      {
+        "package": "com.miui.compass",
+        "name": "Xiaomi Compass",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "user_discretion",
+        "description": "Stock compass app. Safe to remove if not needed.",
+        "impact": "Frees storage."
+      },
+      {
+        "package": "com.miui.calculator",
+        "name": "Xiaomi Calculator",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "user_discretion",
+        "description": "Stock calculator app with currency and mortgage conversion tools.",
+        "impact": "Safe to remove if using Google Calculator."
+      },
+      {
+        "package": "com.samsung.android.bixby.agent",
+        "name": "Bixby Voice Agent",
+        "oem": "samsung_oneui",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Samsung voice assistant daemon running continuous microphone background listeners.",
+        "impact": "Saves battery and RAM; eliminates unwanted Bixby side-button launches."
+      },
+      {
+        "package": "com.samsung.android.game.gamehome",
+        "name": "Samsung Gaming Hub",
+        "oem": "samsung_oneui",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Game launcher containing sponsored game recommendations and advertisements.",
+        "impact": "Eliminates promotional game notifications."
+      },
+      {
+        "package": "com.heytap.pictorial",
+        "name": "ColorOS Lockscreen Magazine",
+        "oem": "bbk_coloros",
+        "category": "oem_bloat",
+        "recommendation": "safe_removal",
+        "description": "Oppo/Realme lock screen wallpaper cycler delivering sponsored content and news.",
+        "impact": "Stops lock screen ad delivery and saves background data."
+      }
+    ],
+    "ru_region_preloads": [
+      {
+        "package": "ru.vk.store",
+        "name": "RuStore App Marketplace",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Russian mandated alternative application marketplace. Keeps persistent background update services running.",
+        "impact": "Frees background memory and stops app update prompts."
+      },
+      {
+        "package": "ru.yandex.searchplugin",
+        "name": "Yandex Search & Assistant",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Mandated search app, widget and Alice voice assistant daemon.",
+        "impact": "Frees RAM and background wake-locks."
+      },
+      {
+        "package": "com.yandex.browser",
+        "name": "Yandex Browser",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Yandex Chromium-based web browser preinstalled on Russian firmware builds.",
+        "impact": "Frees ~250MB storage and background push services."
+      },
+      {
+        "package": "ru.yandex.browser",
+        "name": "Yandex Browser (Alternative ID)",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Alternative package ID for Yandex Browser preinstall.",
+        "impact": "Frees storage."
+      },
+      {
+        "package": "com.vkontakte.android",
+        "name": "VKontakte (VK)",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Preloaded Russian social network client. Heavy background notification and cache footprint.",
+        "impact": "Frees ~300MB RAM and persistent background sockets."
+      },
+      {
+        "package": "ru.mail.mailapp",
+        "name": "Mail.ru Email Client",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Preloaded email client from VK / Mail.ru group.",
+        "impact": "Frees background sync services."
+      },
+      {
+        "package": "ru.myoffice.documents.app.play",
+        "name": "MyOffice Documents",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "safe_removal",
+        "description": "Russian mandated office document viewer/editor preinstall stub.",
+        "impact": "Frees internal storage and removes unnecessary file association handlers."
+      },
+      {
+        "package": "com.myoffice.documents",
+        "name": "MyOffice Documents (OEM Stub)",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "safe_removal",
+        "description": "Alternative stub identifier for MyOffice preinstall.",
+        "impact": "Frees storage."
+      },
+      {
+        "package": "ru.rutube.app",
+        "name": "Rutube Video Platform",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Preloaded Russian video hosting client with notification promotions.",
+        "impact": "Frees storage and removes video streaming cache."
+      },
+      {
+        "package": "com.kms.free",
+        "name": "Kaspersky Mobile Security",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Third-party antivirus scanner preloaded on retail devices. Highly intrusive background file monitoring.",
+        "impact": "Drastically reduces I/O load and background CPU cycles."
+      },
+      {
+        "package": "ru.yandex.disk",
+        "name": "Yandex Disk Cloud",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Cloud backup and photo sync utility.",
+        "impact": "Stops unwanted photo upload polling."
+      },
+      {
+        "package": "ru.kinopoisk",
+        "name": "Kinopoisk Movie Streaming",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Yandex streaming platform client.",
+        "impact": "Frees background services and storage."
+      },
+      {
+        "package": "ru.ok.android",
+        "name": "Odnoklassniki (OK.ru)",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "VK group social network preinstall.",
+        "impact": "Eliminates background push alerts."
+      },
+      {
+        "package": "com.gosuslugi",
+        "name": "Gosuslugi Portal Stub",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "user_discretion",
+        "description": "Russian public services portal preinstall stub. Remove if unused or reinstall from Play/RuStore on demand.",
+        "impact": "Frees storage."
+      }
+    ]
+  }
+}
