@@ -155,16 +155,21 @@ Unlike blind shell scripts that purge packages haphazardly:
 
 ---
 
-## Supported & Tested Devices
+## Device & OS Compatibility Matrix
 
-| Brand | Model | Codename | SoC | Verified Profile |
-|:---|:---|:---|:---|:---:|
-| **Xiaomi / POCO** | **POCO F5 / Redmi Note 12 Turbo** | `marble` | Snapdragon 7+ Gen 2 | [View Profile](devices/xiaomi/poco-f5-marble.md) |
-| **Samsung** | Galaxy S23 / S24 Series | `kalama` / `pineapple` | Snapdragon 8 Gen 2/3 | *Community PR Welcome* |
-| **OnePlus** | OnePlus 11 / 12 | `salami` / `pineapple` | Snapdragon 8 Gen 2/3 | *Community PR Welcome* |
-| **Google** | Pixel 7 / 8 / 9 Series | `panther` / `shiba` / `caiman` | Google Tensor G2/G3/G4 | *Community PR Welcome* |
+> [!IMPORTANT]
+> Package namespaces, background services, and AppOps permissions vary across OEM skins and major Android releases. **Only configurations marked `✅ Verified` have been tested on real physical hardware with complete before/after telemetry logs.**
+> For configurations marked `⚠️ Untested`, the agent operates conservatively using `safety/bootloop_blacklist.json` and interactive user confirmation. We actively encourage community submissions to expand verified profiles!
 
-### Add Your Device
+| Brand / OEM | Model Family | Codename | OS & Android Version | Test Status | Profile & Benchmarks |
+|:---|:---|:---|:---|:---:|:---:|
+| **Xiaomi / POCO** | **POCO F5 / Redmi Note 12 Turbo** | `marble` / `marblein` | **HyperOS 3.0** (Android 15) & **HyperOS 1.0** (Android 14) | ✅ **Verified** | [View Hardware Profile](devices/xiaomi/poco-f5-marble.md) |
+| **Samsung** | Galaxy S23 / S24 Series | `kalama` / `pineapple` | One UI 6.x / 7.x (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
+| **OnePlus** | OnePlus 11 / 12 | `salami` / `pineapple` | OxygenOS 14 / 15 (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
+| **Google** | Pixel 7 / 8 / 9 Series | `panther` / `shiba` / `caiman` | Pixel UI (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
+| **Realme / Oppo** | GT / Find Series | Various | ColorOS 14 (Android 14) | ⚠️ **Untested** | *Community PR Welcome* |
+
+### Add Your Device Profile
 Debloated your phone with `cleanyourdroid`? Submit a Pull Request with your device profile under `devices/<brand>/<codename>.md` so other users can optimize their devices safely!
 
 ---
