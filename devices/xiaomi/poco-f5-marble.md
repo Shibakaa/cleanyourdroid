@@ -67,6 +67,7 @@ The following packages have been thoroughly tested on HyperOS 1.0 / 3.0 (Android
 | `com.mipay.wallet.in` | Mi Credit / Wallet | Predatory instant loan promotion banners. |
 | `com.miui.cleanmaster` | Clean Master Definitions | Legacy Cheetah Mobile tracking definitions. |
 | `com.xiaomi.mipicks` | GetApps Store | Proprietary store pushing constant download prompts. |
+| `cn.wps.xiaomi.abroad.lite` | WPS Office (preinstall) | Kingsoft office suite bundled on RUXM builds; duplicate of any office app you install. Removed in the verified session. |
 
 ### Group D: Russian Region Mandated Preloads & Stubs (`VMRRUXM` Specific)
 Firmware builds targeted for the Russian market (`RUXM`) contain pre-activated Russian statutory software packages that remain active in the background:
@@ -78,8 +79,9 @@ Firmware builds targeted for the Russian market (`RUXM`) contain pre-activated R
 | `com.yandex.browser` / `ru.yandex.browser` | Yandex Browser | **User Discretion:** Preloaded browser. Safe to remove if using Chrome/Firefox. |
 | `com.vkontakte.android` | VKontakte Client | **User Discretion:** Official VK client. Can be removed if unused; can also be restricted via `appops`. |
 | `ru.mail.mailapp` | Mail.ru Mail Client | **Safe Removal:** Factory preloaded email client. |
-| `ru.myoffice.documents.app.play` | MyOffice Documents | **Safe Removal:** Office viewer stub; frees ~180MB of storage. |
+| `ru.myoffice.documents.app.play` | MyOffice Documents | **Safe Removal:** Office viewer stub. Removes the app for user 0; the APK stays in `/system`, so expect no measurable storage gain. |
 | `ru.rutube.app` | Rutube Video | **Safe Removal:** Video hosting client with notification promotions. |
+| `com.yandex.preinstallsatellite` | Yandex Preinstall Satellite | **Safe Removal:** Silent installer stub that provisions the Yandex suite after first boot. Removed in the verified session; stops partner-app provisioning without losing a user-facing app. |
 | `com.kms.free` | Kaspersky Mobile Security | **Safe Removal:** Extremely heavy I/O antivirus background scanner. Significant battery and CPU win upon removal. |
 | `ru.yandex.disk` | Yandex Disk | **User Discretion:** Cloud photo auto-upload background service. |
 | `ru.kinopoisk` | Kinopoisk | **User Discretion:** Streaming client. |
@@ -131,12 +133,18 @@ Measured directly on hardware: **POCO F5 (`23049PCD8G`, `marble`)** running **Xi
 | Telemetry Metric | Before Optimization | After cleanyourdroid | Net Gain / Delta |
 |:---|:---:|:---:|:---:|
 | **Enabled Packages (User 0)** | 731 | 716 | **-15 core bloat packages** |
-| **Active Used Memory** | 6,788.9 MB | 6,133.0 MB | **+655.9 MB active RAM freed** |
+| **Used RAM (dumpsys PSS)** | 6,788.9 MB | 6,133.0 MB | **-655.9 MB** |
+| **Available RAM (total 11,160 − used)** | 4,371.1 MB | 5,027.0 MB | **+655.9 MB headroom** |
+| **Free RAM incl. cache (dumpsys)** | 9,305.8 MB | 9,121.4 MB | -184.4 MB: the page cache shrank, this is not a regression |
 | **ZRAM Swap Utilization** | 1,813.4 MB | 1,772.0 MB | **-41.4 MB compressed swap pressure** |
-| **Available RAM Buffer** | 9,305.8 MB | 9,121.4 MB | Caches trimmed via `pm trim-caches` |
 | **Display Refresh Rate** | 120 Hz (Dynamic) | 120 Hz (Dynamic) | **100% Unbroken** (`PowerKeeper` retained) |
 | **Background AppOps Hog Eviction** | Active background | Restrained (`ignore`) | `com.facebook.katana` & `com.instagram.android` evicted from top memory consumers |
 | **ART Compilation Status** | Partial JIT | Profile-Guided Ahead-of-Time | `cmd package bg-dexopt-job` completed |
+
+> [!NOTE]
+> **Why both RAM rows exist.** `dumpsys meminfo` prints a `Free RAM` figure that already contains cached pages, so `Free RAM + Used RAM` can exceed the physical total. Reporting it as "available memory" produces a card where a successful cleanup looks like a regression (-184.4 MB above). The honest pair is *Used* (PSS) and *Available = total − used*; the cache row is kept for transparency.
+>
+> **Storage.** Every removal used `pm uninstall -k --user 0`, so no APK left `/system` and no app data was deleted. Storage was reclaimed only by `pm trim-caches`; the session never claimed per-package "MB freed".
 
 ### 5.1 HyperOS Privacy & Ad Tracking Tweaks
 The following settings flags were disabled via ADB to prevent background network polling and lockscreen recommendation banners:
@@ -157,7 +165,8 @@ The following settings flags were disabled via ADB to prevent background network
 If you wish to re-enable all removed packages:
 
 ```bash
-# Execute the auto-generated reversal script
+# Regenerate the script from the session log, then run it:
+python3 tools/audit.py restore-script
 bash ./backups/restore.sh
 ```
 
@@ -166,4 +175,4 @@ Or restore an individual package (for example, Mi Music or RuStore):
 adb shell cmd package install-existing com.miui.player
 adb shell cmd package install-existing ru.vk.store
 ```
-No data is lost during removal because all operations execute with the `-k` retention flag.
+No app data is lost during removal because every operation uses the `-k` retention flag, and the APK itself never left the system partition.

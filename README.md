@@ -23,6 +23,8 @@ Modern Android phones from Xiaomi, Samsung, BBK (OnePlus/Realme/Oppo), and even 
 
 `cleanyourdroid` turns your AI coding agent (Claude Code, Gemini CLI, Cursor, Windsurf, Codex) into a specialized Android systems engineer. Plug in your phone via USB or Wireless Debugging, paste `PROMPT.md`, and let the agent audit, debloat, restrict battery drains, and compile ART profiles &mdash; with zero root and instant 1-click reversibility.
 
+The agent never decides from memory: a deterministic planner cross-references your installed packages against two curated databases, and every executed change is logged, so the report and the reversal script cannot drift from what actually ran.
+
 ---
 
 ```
@@ -36,12 +38,14 @@ Modern Android phones from Xiaomi, Samsung, BBK (OnePlus/Realme/Oppo), and even 
 │ METRIC                    │ BEFORE       │ AFTER        │ DELTA        │
 ├───────────────────────────┼──────────────┼──────────────┼──────────────┤
 │ Enabled Packages          │ 731          │ 716          │ -15          │
-│ Active Used RAM           │ 6,788.9 MB   │ 6,133.0 MB   │ -655.9 MB    │
-│ Available Memory Buffer   │ 9,305.8 MB   │ 9,121.4 MB   │ -184.4 MB    │
+│ Used RAM (PSS)            │ 6788.9 MB    │ 6133.0 MB    │ -655.9 MB    │
+│ Available RAM             │ 4371.1 MB    │ 5027.0 MB    │ +655.9 MB    │
+│ Free RAM (incl. cache)    │ 9305.8 MB    │ 9121.4 MB    │ -184.4 MB    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ Status: 100% Rootless Clean & Optimized                                │
-│ Active RAM Gain: +655.9 MB freed from background services              │
-│ Reversibility: Ready via ./backups/restore.sh                          │
+│ Scope: user-0 packages + settings only; APKs stay in /system.          │
+│ Available RAM gain: +655.9 MB (total minus used, dumpsys PSS).         │
+│ Action log: 23 recorded, 23 reversible.                                │
+│ Reversal: bash ./backups/restore.sh                                    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,17 +57,18 @@ Modern Android phones from Xiaomi, Samsung, BBK (OnePlus/Realme/Oppo), and even 
 
 | Stage | Action | Description |
 |:---:|:---|:---|
-| **1** | **Backup & Snapshot** | Takes baseline memory and package snapshot via `tools/audit.py`, records system settings, and creates `restore.sh`. |
-| **2** | **Interactive Audit** | Cross-references installed packages against `safety/known_bloatware.json` and `safety/bootloop_blacklist.json`, presenting a categorized table for approval. |
-| **3** | **Debloat & ART Compile** | Disables/uninstalls approved bloat (`-k` data retained), applies `appops` background restrictions, trims cache, and runs `cmd package bg-dexopt-job`. |
-| **4** | **Benchmark Report** | Generates a terminal summary card and an interactive dark-mode HTML bento report at `./backups/report.html`. |
+| **1** | **Snapshot & backup** | `tools/audit.py snapshot before` records RAM, packages and top processes; settings and package lists are dumped to `backups/`. |
+| **2** | **Deterministic plan** | `tools/plan.py` cross-references the installed packages against `safety/known_bloatware.json` and refuses anything in `safety/bootloop_blacklist.json`. The agent presents that table for approval instead of inventing package names. |
+| **3** | **Execute & log** | Each approved change is executed and immediately recorded with `tools/audit.py log-action`, including its exact reverse command. |
+| **4** | **Tune** | Standby buckets, animation scales, OEM ad flags, cache trim and ART compilation &mdash; all optional, all logged. |
+| **5** | **Report & reversal** | `compare` prints the summary card and writes `backups/report.html`; `restore-script` regenerates `backups/restore.sh` from the log. |
 
 ---
 
 ## Quick Start
 
 ### 1. Prerequisites
-- A computer with **Python 3.8+** and **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)).
+- A computer with **Python 3.8+** and **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)). No pip install, no virtualenv: stdlib only.
 - Any AI coding tool: [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini), [Cursor](https://cursor.sh), or [Windsurf](https://codeium.com/windsurf).
 
 ### 2. Enable Developer Options on Your Phone
@@ -117,18 +122,33 @@ gemini
 
 Sit back and review the proposed changes before approving.
 
+### 4. Or just look at the plan (no agent, no risk)
+```bash
+python3 tools/plan.py            # what would be removed on *this* phone
+python3 tools/plan.py --format md
+python3 tools/plan.py --validate # sanity-check the databases
+```
+`plan.py` is read-only: it never touches the device.
+
 ---
 
 ## Zero-Blindness & Safety Guarantee
 
 Unlike blind shell scripts that purge packages haphazardly:
-1. **Never Brick Guarantee:** Every package removal candidate is verified against [`safety/bootloop_blacklist.json`](safety/bootloop_blacklist.json). Essential components (`com.miui.securitycenter`, `com.xiaomi.finddevice`, `com.miui.powerkeeper`, Knox core, `SystemUI`, dialers, and input methods) are strictly protected.
-2. **Zero Data Loss (`-k` Flag):** System packages are uninstalled using `pm uninstall -k --user 0`. The APK remains in `/system` and user app data/cache remains intact.
-3. **Instant Reversibility:** Every single package and setting modification generates an exact reversal command in `./backups/restore.sh`:
+1. **Deterministic guard:** `tools/plan.py` excludes everything listed in [`safety/bootloop_blacklist.json`](safety/bootloop_blacklist.json) before the agent ever sees a candidate, and prints how many protected packages are present as proof the guard is live. Essential components (`com.miui.securitycenter`, `com.xiaomi.finddevice`, `com.miui.powerkeeper`, Knox core, `SystemUI`, dialer, active IME/launcher) are strictly protected.
+2. **No invented package names:** the only removal candidates are entries of [`safety/known_bloatware.json`](safety/known_bloatware.json) that are actually installed. Anything else requires explicit, identifier-verified approval.
+3. **Zero data loss (`-k` flag):** system packages are uninstalled with `pm uninstall -k --user 0`. The APK remains in `/system` and the app data stays put.
+4. **Verified execution:** every batch is checked with `pm list packages -e --user 0` and `dumpsys window` so a crash-looping SystemUI is caught immediately.
+5. **Instant reversibility:** every change is recorded with its exact reverse command in `backups/actions.json`, and `backups/restore.sh` is generated from that log:
    ```bash
-   # Restore all packages at any time:
+   # Restore everything, newest change first:
    bash ./backups/restore.sh
+   # Target one device when several are attached:
+   ADB="adb -s <serial>" bash ./backups/restore.sh
    ```
+
+> [!NOTE]
+> `pm uninstall -k --user 0` frees **RAM and background activity, not storage**: the APK stays in the system partition and `-k` keeps the data. Storage is reclaimed by `pm trim-caches` (caches only). The README used to imply otherwise; it no longer does.
 
 ---
 
@@ -148,10 +168,13 @@ Unlike blind shell scripts that purge packages haphazardly:
 - `com.xiaomi.mipicks` (GetApps silent installer)
 - `com.samsung.android.bixby.agent` (Bixby voice wake-up service)
 
-### 3. Background Memory Optimization
-- Restricts rogue third-party apps holding persistent wake-locks via `adb shell cmd appops set <pkg> RUN_IN_BACKGROUND ignore`.
-- Trims OS package caches: `adb shell pm trim-caches 999G`.
-- Triggers profile-guided Ahead-of-Time ART compilation on remaining system packages: `adb shell cmd package bg-dexopt-job`.
+### 3. Google Pixel / AOSP
+There is no OEM ad SDK to remove here. The `google_pixel` category lists preinstalled apps that need a decision: Pixel Tips (safe to drop), YouTube / YouTube Music / Photos / Chrome / Gemini / Digital Wellbeing / Personal Safety (your call). Google's own telemetry stack (`com.google.android.gms`, `com.google.android.gsf`) is **not** removable without root, and this tool will not pretend otherwise.
+
+### 4. Background Memory Optimization
+- Restricts heavy third-party apps with App Standby buckets (`am set-standby-bucket <pkg> restricted`) and, when you ask for it, AppOps (`cmd appops set <pkg> RUN_IN_BACKGROUND ignore` &mdash; this *can* silence notifications).
+- Trims package caches: `pm trim-caches 999G`.
+- Triggers profile-guided AOT compilation: `cmd package bg-dexopt-job`, or `cmd package compile -m speed-profile -f <pkg>` for individual apps.
 
 ---
 
@@ -166,11 +189,24 @@ Unlike blind shell scripts that purge packages haphazardly:
 | **Xiaomi / POCO** | **POCO F5 / Redmi Note 12 Turbo** | `marble` / `marblein` | **HyperOS 3.0** (Android 15) & **HyperOS 1.0** (Android 14) | ✅ **Verified** | [View Hardware Profile](devices/xiaomi/poco-f5-marble.md) |
 | **Samsung** | Galaxy S23 / S24 Series | `kalama` / `pineapple` | One UI 6.x / 7.x (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
 | **OnePlus** | OnePlus 11 / 12 | `salami` / `pineapple` | OxygenOS 14 / 15 (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
-| **Google** | Pixel 7 / 8 / 9 Series | `panther` / `shiba` / `caiman` | Pixel UI (Android 14 / 15) | ⚠️ **Untested** | *Community PR Welcome* |
+| **Google** | Pixel 7 / 8 / 9 / 10 Series | `panther` / `shiba` / `caiman` | Pixel UI (Android 14 - 16) | ⚠️ **Untested** | *No OEM ads: expect 1-2 safe removals* |
 | **Realme / Oppo** | GT / Find Series | Various | ColorOS 14 (Android 14) | ⚠️ **Untested** | *Community PR Welcome* |
 
 ### Add Your Device Profile
 Debloated your phone with `cleanyourdroid`? Submit a Pull Request with your device profile under `devices/<brand>/<codename>.md` so other users can optimize their devices safely!
+
+---
+
+## FAQ
+
+**"What would it remove on my phone?"**
+Run `python3 tools/plan.py`. It prints exactly that, grouped by risk, using the databases in `safety/`. On a Pixel 10 Pro XL the honest answer is: *Pixel Tips, plus a decision list of preinstalled Google apps* &mdash; there is no MSA, no Digital Turbine, and no Meta installer on a Pixel. The repo's Pixel data is illustrative, not a verified profile; a PR from a real device is very welcome.
+
+**"Why does one number go down after a cleanup?"**
+`Free RAM` from `dumpsys` includes cached pages, so it fluctuates with cache pressure. `Available RAM` (total minus used) is the number that reflects headroom. Both are printed so you can check the arithmetic yourself.
+
+**"Does this void my warranty / trip Knox / break OTA?"**
+No root, no bootloader unlock, no system modification: packages are only hidden from user 0 and settings are changed through the official `settings` provider. A factory reset restores everything, and `restore.sh` does it without one.
 
 ---
 
@@ -179,16 +215,21 @@ Debloated your phone with `cleanyourdroid`? Submit a Pull Request with your devi
 ```
 cleanyourdroid/
 ├── AGENTS.md                  # Master instructions for AI coding assistants
-├── GEMINI.md                  # Gemini-specific agent copy
-├── CLAUDE.md                  # Claude Code-specific agent copy
-├── PROMPT.md                  # 4-stage interactive user prompt
+├── CLAUDE.md                  # Claude Code entry point (points at AGENTS.md)
+├── GEMINI.md                  # Gemini CLI entry point (points at AGENTS.md)
+├── PROMPT.md                  # 5-stage interactive user prompt
 ├── README.md                  # English documentation
 ├── README.ru.md               # Russian documentation
 ├── safety/
 │   ├── bootloop_blacklist.json # Hard-blocked critical system packages
 │   └── known_bloatware.json    # Curated database of verified bloatware
 ├── tools/
-│   └── audit.py               # Zero-dependency audit & HTML bento generator
+│   ├── adbkit.py              # Shared ADB plumbing (device selection, errors)
+│   ├── audit.py               # Snapshots, action log, reversal script, HTML report
+│   └── plan.py                # Deterministic package plan against both databases
+├── tests/
+│   ├── fake_adb.py            # Stand-in adb, so tests run without a phone
+│   └── test_tools.py          # End-to-end tests (python -m unittest discover -s tests)
 └── devices/
     └── xiaomi/
         └── poco-f5-marble.md  # Reference device benchmark & config
@@ -196,22 +237,35 @@ cleanyourdroid/
 
 ---
 
-## Telemetry & Benchmarking Tool (`audit.py`)
+## Tooling
 
-You can also use the bundled zero-dependency Python tool standalone:
-
+### `tools/plan.py` &mdash; what would be removed?
 ```bash
-# Capture baseline before debloating:
+python3 tools/plan.py                 # human-readable groups
+python3 tools/plan.py --format md     # Markdown table for the chat / a PR
+python3 tools/plan.py --format json   # structured, for scripts and agents
+python3 tools/plan.py --validate      # duplicate / overlap check for the databases
+python3 tools/plan.py --packages-file backups/installed_packages_before.txt  # offline
+```
+
+### `tools/audit.py` &mdash; telemetry, action log, report
+```bash
 python3 tools/audit.py snapshot before
-
-# Capture status after debloating:
+python3 tools/audit.py log-action --kind package --target com.miui.msa.global \
+  --command "adb shell pm uninstall -k --user 0 com.miui.msa.global" \
+  --restore "adb shell cmd package install-existing com.miui.msa.global" --result ok
 python3 tools/audit.py snapshot after
-
-# Compare snapshots, print terminal summary, and generate HTML bento report:
+python3 tools/audit.py restore-script     # regenerate backups/restore.sh from the log
 python3 tools/audit.py compare before after
 ```
 
-The resulting `./backups/report.html` is an interactive dark-mode bento dashboard ready for sharing on Reddit or X.
+The resulting `./backups/report.html` is an interactive dark-mode bento dashboard that only claims what was measured or logged.
+
+### Running the tests
+```bash
+python -m unittest discover -s tests -v
+```
+No phone required: `tests/fake_adb.py` answers `getprop`, `dumpsys meminfo` and `pm list packages`. Point the tools at any other adb wrapper with `CLEANYOURDROID_ADB`.
 
 ---
 
