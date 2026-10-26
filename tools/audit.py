@@ -9,11 +9,14 @@ import argparse
 import datetime
 import json
 import os
-from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
+from pathlib import Path
+
+# The tools sit side by side, so make `import adbkit` work from any cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from adbkit import Adb, AdbError  # noqa: E402  (sys.path is prepared above)
 
 # Ensure UTF-8 output on Windows consoles with legacy encodings (e.g. cp1251, cp437)
 if hasattr(sys.stdout, "reconfigure"):
@@ -30,74 +33,28 @@ if hasattr(sys.stderr, "reconfigure"):
 
 BACKUPS_DIR = Path("backups")
 
+# Populated by main() from --adb / --serial. The client is created lazily so
+# `compare` still works on a machine with neither a phone nor adb installed.
+_ADB_OPTIONS = {}
+_ADB = None
 
-def get_adb_binary():
-    """Locate adb binary in PATH, repository subdirectories, or standard SDK locations."""
-    # 1. System PATH
-    adb_path = shutil.which("adb")
-    if adb_path:
-        return adb_path
 
-    # 2. Local workspace candidates
-    local_candidates = [
-        Path("tools/platform-tools/adb.exe"),
-        Path("tools/platform-tools/adb"),
-        Path("platform-tools/adb.exe"),
-        Path("platform-tools/adb"),
-        Path("../platform-tools/adb.exe"),
-        Path("C:/platform-tools/adb.exe"),
-        Path("D:/platform-tools/adb.exe"),
-    ]
-    for c in local_candidates:
-        if c.is_file():
-            return str(c.resolve())
-
-    # 3. Standard Android SDK paths
-    localappdata = os.environ.get("LOCALAPPDATA", "")
-    if localappdata:
-        sdk_adb = Path(localappdata) / "Android" / "Sdk" / "platform-tools" / "adb.exe"
-        if sdk_adb.is_file():
-            return str(sdk_adb)
-
-    return None
+def adb_client():
+    global _ADB
+    if _ADB is None:
+        _ADB = Adb(binary=_ADB_OPTIONS.get("binary"), serial=_ADB_OPTIONS.get("serial"))
+    return _ADB
 
 
 def run_adb_cmd(args, timeout=15):
-    """Run an ADB command and return stdout as string, or empty string on failure."""
-    adb_path = get_adb_binary()
-    if not adb_path:
-        raise RuntimeError(
-            "Error: 'adb' executable was not found in PATH or in ./tools/platform-tools/.\n"
-            "Please ensure Android Platform Tools are installed and 'adb' is accessible."
-        )
-
-    cmd = [adb_path] + args
+    """Run an ADB command and return stdout, or an empty string on failure."""
     try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
-        if proc.returncode != 0:
-            err = proc.stderr.strip()
-            if "device unauthorized" in err:
-                raise RuntimeError(
-                    "ADB Error: Device is unauthorized. Check your phone screen and tap 'Always allow from this computer'."
-                )
-            if "no devices/emulators found" in err:
-                raise RuntimeError(
-                    "ADB Error: No connected Android device found.\n"
-                    "Connect your phone via USB or Wireless Debugging and ensure 'USB debugging' is enabled."
-                )
-            return ""
-        return proc.stdout
-    except subprocess.TimeoutExpired:
-        print(f"Warning: Command '{' '.join(cmd)}' timed out after {timeout}s", file=sys.stderr)
+        proc = adb_client().run(args, timeout=timeout)
+    except AdbError as exc:
+        raise RuntimeError(str(exc))
+    if proc.returncode != 0:
         return ""
+    return proc.stdout
 
 
 def clean_int(val_str):
@@ -127,15 +84,30 @@ def get_device_info():
 
 
 def parse_meminfo():
-    """Parse 'dumpsys meminfo' for RAM metrics and top processes, with /proc/meminfo fallback."""
+    """Parse RAM metrics and top processes from dumpsys, with /proc/meminfo fallback.
+
+    Metric definitions matter here, because the published numbers are only
+    meaningful when they add up:
+
+    * ``used_ram_mb``       - dumpsys "Used RAM" (PSS based)
+    * ``free_ram_mb``       - dumpsys "Free RAM", which *includes* cached pages
+    * ``available_ram_mb``  - total - used, i.e. headroom without swapping
+    * ``mem_available_mb``  - kernel MemAvailable, the honest "free" figure
+
+    dumpsys "Free RAM" plus "Used RAM" can exceed total RAM on devices with a
+    large page cache, so neither is reported as "available memory".
+    """
     raw_mem = run_adb_cmd(["shell", "dumpsys", "meminfo"])
     metrics = {
         "total_ram_mb": 0,
         "free_ram_mb": 0,
         "used_ram_mb": 0,
+        "available_ram_mb": 0,
+        "mem_available_mb": 0,
         "cached_ram_mb": 0,
         "zram_used_mb": 0,
         "top_processes": [],
+        "source": "dumpsys",
     }
 
     if raw_mem:
@@ -183,25 +155,43 @@ def parse_meminfo():
                         break
         metrics["top_processes"] = top_procs
 
-    # Fallback to /proc/meminfo if dumpsys failed or returned 0
-    if metrics["total_ram_mb"] == 0:
-        proc_mem = run_adb_cmd(["shell", "cat", "/proc/meminfo"])
-        if proc_mem:
-            mem_tot = re.search(r"MemTotal:\s*(\d+)\s*kB", proc_mem)
-            mem_free = re.search(r"MemFree:\s*(\d+)\s*kB", proc_mem)
-            mem_avail = re.search(r"MemAvailable:\s*(\d+)\s*kB", proc_mem)
-            mem_cached = re.search(r"^Cached:\s*(\d+)\s*kB", proc_mem, re.MULTILINE)
+    # The kernel view: always cheap, and the only trustworthy "free" number.
+    proc_mem = run_adb_cmd(["shell", "cat", "/proc/meminfo"])
+    if proc_mem:
+        mem_tot = re.search(r"MemTotal:\s*(\d+)\s*kB", proc_mem)
+        mem_free = re.search(r"MemFree:\s*(\d+)\s*kB", proc_mem)
+        mem_avail = re.search(r"MemAvailable:\s*(\d+)\s*kB", proc_mem)
+        mem_cached = re.search(r"^Cached:\s*(\d+)\s*kB", proc_mem, re.MULTILINE)
 
-            if mem_tot:
-                metrics["total_ram_mb"] = round(int(mem_tot.group(1)) / 1024, 1)
+        if mem_tot:
+            proc_total = round(int(mem_tot.group(1)) / 1024, 1)
+            if metrics["total_ram_mb"] == 0:
+                metrics["total_ram_mb"] = proc_total
+                metrics["source"] = "proc"
+        if mem_avail:
+            metrics["mem_available_mb"] = round(int(mem_avail.group(1)) / 1024, 1)
+
+        # Fallback when dumpsys was unavailable or returned nothing useful.
+        if metrics["total_ram_mb"] > 0 and metrics["used_ram_mb"] == 0:
             if mem_avail:
-                metrics["free_ram_mb"] = round(int(mem_avail.group(1)) / 1024, 1)
+                available = round(int(mem_avail.group(1)) / 1024, 1)
             elif mem_free:
-                metrics["free_ram_mb"] = round(int(mem_free.group(1)) / 1024, 1)
-            if mem_cached:
-                metrics["cached_ram_mb"] = round(int(mem_cached.group(1)) / 1024, 1)
-            if metrics["total_ram_mb"] > 0 and metrics["free_ram_mb"] > 0:
-                metrics["used_ram_mb"] = round(metrics["total_ram_mb"] - metrics["free_ram_mb"], 1)
+                available = round(int(mem_free.group(1)) / 1024, 1)
+            elif metrics["mem_available_mb"]:
+                available = metrics["mem_available_mb"]
+            else:
+                available = metrics["free_ram_mb"]
+            if available:
+                metrics["free_ram_mb"] = available
+                metrics["used_ram_mb"] = round(metrics["total_ram_mb"] - available, 1)
+                metrics["source"] = "proc"
+        if mem_cached and metrics["cached_ram_mb"] == 0:
+            metrics["cached_ram_mb"] = round(int(mem_cached.group(1)) / 1024, 1)
+
+    if metrics["total_ram_mb"] > 0 and metrics["used_ram_mb"] > 0:
+        metrics["available_ram_mb"] = round(metrics["total_ram_mb"] - metrics["used_ram_mb"], 1)
+    elif metrics["mem_available_mb"]:
+        metrics["available_ram_mb"] = metrics["mem_available_mb"]
 
     return metrics
 
@@ -248,12 +238,17 @@ def cmd_snapshot(label):
     print(f"[+] Snapshot successfully saved to: {out_file}")
     print(f"    - Device: {device_info['brand']} {device_info['model']} ({device_info['device']})")
     print(f"    - Android Version: {device_info['android_version']} (Build: {device_info['build_id']})")
-    print(f"    - Total RAM: {meminfo['total_ram_mb']} MB | Available: {meminfo['free_ram_mb']} MB")
+    print(f"    - Total RAM: {meminfo['total_ram_mb']} MB | Available: {meminfo['available_ram_mb']} MB"
+          f" (free incl. cache: {meminfo['free_ram_mb']} MB)")
     print(f"    - Enabled Packages: {len(packages)}")
 
 
-def generate_html_report(before_data, after_data, diff, output_path):
-    """Generate a sleek, dark-mode bento grid HTML report."""
+def generate_html_report(before_data, after_data, diff, output_path, actions=None):
+    """Generate a sleek, dark-mode bento grid HTML report.
+
+    Everything the report asserts comes from the snapshots or from the action
+    log written by ``log-action``; nothing is hardcoded as "already done".
+    """
     device = after_data.get("device", before_data.get("device", {}))
     brand_model = f"{device.get('brand', 'Android').capitalize()} {device.get('model', 'Device')}"
     codename = device.get("device", "generic")
@@ -265,15 +260,79 @@ def generate_html_report(before_data, after_data, diff, output_path):
     pkgs_after = after_data["packages"]["total_enabled_count"]
     pkgs_diff = diff["packages_removed"]
 
-    ram_before = before_data["memory"]["free_ram_mb"]
-    ram_after = after_data["memory"]["free_ram_mb"]
+    def memory_value(data, key):
+        return data.get("memory", {}).get(key, 0) or 0
+
+    total_ram = memory_value(after_data, "total_ram_mb") or memory_value(before_data, "total_ram_mb")
+    used_before = memory_value(before_data, "used_ram_mb")
+    used_after = memory_value(after_data, "used_ram_mb")
+    avail_before = memory_value(before_data, "available_ram_mb") or round(total_ram - used_before, 1)
+    avail_after = memory_value(after_data, "available_ram_mb") or round(total_ram - used_after, 1)
+    free_before = memory_value(before_data, "free_ram_mb")
+    free_after = memory_value(after_data, "free_ram_mb")
     ram_freed = diff["ram_freed_mb"]
 
-    used_before = before_data["memory"]["used_ram_mb"]
-    used_after = after_data["memory"]["used_ram_mb"]
-    total_ram = after_data["memory"]["total_ram_mb"] or before_data["memory"]["total_ram_mb"]
+    avail_delta = round(avail_after - avail_before, 1)
+    avail_delta_display = f"+{avail_delta}" if avail_delta >= 0 else f"{avail_delta}"
 
     removed_list = diff.get("removed_packages_list", [])
+
+    # Action log: only kinds that were actually recorded get a check mark.
+    action_counts = {}
+    failed_count = 0
+    for action in (actions or {}).get("actions", []):
+        result = (action.get("result") or "").lower()
+        if result in ("ok", "already", "noop"):
+            kind = (action.get("kind") or "other").lower()
+            action_counts[kind] = action_counts.get(kind, 0) + 1
+        elif result == "failed":
+            failed_count += 1
+
+    action_labels = [
+        ("package", "Packages disabled / removed"),
+        ("appops", "AppOps restrictions"),
+        ("settings", "Settings changed"),
+        ("dexopt", "ART recompilation"),
+        ("cache", "Cache trimmed"),
+        ("other", "Other actions"),
+    ]
+    tiles = []
+    for kind, label in action_labels:
+        if action_counts.get(kind):
+            tiles.append(
+                f"<div class='spec-item'><div class='spec-label'>{label}</div>"
+                f"<div class='spec-val text-emerald'>&#10003; {action_counts[kind]} logged</div></div>"
+            )
+    if tiles:
+        action_tiles = "".join(tiles)
+        action_note = (
+            f"<p class='kpi-subtext'>Read from <code>backups/actions.json</code>: "
+            f"{sum(action_counts.values())} recorded action(s)"
+            + (f", {failed_count} failed" if failed_count else "")
+            + ". Reversal: <code>bash backups/restore.sh</code>.</p>"
+        )
+    else:
+        action_tiles = (
+            "<div class='spec-item' style='grid-column: span 2;'>"
+            "<div class='spec-label'>Action log</div>"
+            "<div class='spec-val' style='color:var(--text-muted);'>not recorded</div></div>"
+        )
+        action_note = (
+            "<p class='kpi-subtext'>No <code>backups/actions.json</code>, so this card shows only the measured "
+            "snapshot diff. Record every change with <code>tools/audit.py log-action</code> so the report and "
+            "the reversal script stay in sync.</p>"
+        )
+
+    has_restore = any((action.get("restore") or "").strip() for action in (actions or {}).get("actions", []))
+    reversibility_badge = (
+        '<span class="badge badge-sky">&#10003; Reversible (restore.sh)</span>'
+        if has_restore
+        else '<span class="badge">&#9888; No reversal script recorded</span>'
+    )
+    if has_restore and failed_count == 0:
+        package_badge = "User 0 scope"
+    else:
+        package_badge = "User 0 scope &bull; check log"
 
     # Process lists
     top_before = before_data["memory"].get("top_processes", [])[:8]
@@ -559,7 +618,7 @@ def generate_html_report(before_data, after_data, diff, output_path):
       </div>
       <div class="badge-bar">
         <span class="badge badge-success">&#9679; 100% Rootless</span>
-        <span class="badge badge-sky">&#10003; Reversible (restore.sh)</span>
+        {reversibility_badge}
         <span class="badge">{datetime.date.today().isoformat()}</span>
       </div>
     </header>
@@ -572,7 +631,7 @@ def generate_html_report(before_data, after_data, diff, output_path):
         <div>
           <span class="kpi-delta positive">&darr; {pkgs_before} &rarr; {pkgs_after} active</span>
         </div>
-        <p class="kpi-subtext">Safe zero-loss debloat via ADB user-0 package manager.</p>
+        <p class="kpi-subtext">User-0 package state only &mdash; the APK stays in the system partition.</p>
       </div>
 
       <!-- KPI 2: Active RAM Freed -->
@@ -582,17 +641,17 @@ def generate_html_report(before_data, after_data, diff, output_path):
         <div>
           <span class="kpi-delta positive">&darr; {used_before} MB &rarr; {used_after} MB used</span>
         </div>
-        <p class="kpi-subtext">Freed from persistent background OEM services & daemons.</p>
+        <p class="kpi-subtext">dumpsys "Used RAM" (PSS based) before and after the session.</p>
       </div>
 
       <!-- KPI 3: Available RAM -->
       <div class="card col-4">
-        <div class="card-title">Available RAM Buffer</div>
-        <div class="kpi-value" style="color:var(--sky);">{ram_after} <span style="font-size:1.25rem; font-weight:600;">MB</span></div>
+        <div class="card-title">Available RAM</div>
+        <div class="kpi-value" style="color:var(--sky);">{avail_after} <span style="font-size:1.25rem; font-weight:600;">MB</span></div>
         <div>
-          <span class="badge">Total Physical: {total_ram} MB</span>
+          <span class="badge">{avail_delta_display} MB vs baseline</span>
         </div>
-        <p class="kpi-subtext">Healthy memory headroom with package caches trimmed.</p>
+        <p class="kpi-subtext">Total {total_ram} MB &minus; used. Free RAM incl. cache was {free_before} &rarr; {free_after} MB.</p>
       </div>
 
       <!-- Device Spec Overview -->
@@ -618,34 +677,20 @@ def generate_html_report(before_data, after_data, diff, output_path):
         </div>
       </div>
 
-      <!-- System Tuning Applied -->
+      <!-- System Tuning Applied (from the action log, never assumed) -->
       <div class="card col-6">
-        <div class="card-title">System Optimizations Applied</div>
+        <div class="card-title">System Optimizations Logged</div>
         <div class="spec-grid">
-          <div class="spec-item">
-            <div class="spec-label">ART Compilation</div>
-            <div class="spec-val text-emerald">&#10003; bg-dexopt-job completed</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-label">Package Cache Trim</div>
-            <div class="spec-val text-emerald">&#10003; pm trim-caches 999G</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-label">Animation Tuning</div>
-            <div class="spec-val text-emerald">&#10003; Window & Animator @ 0.5x</div>
-          </div>
-          <div class="spec-item">
-            <div class="spec-label">Reversibility</div>
-            <div class="spec-val text-emerald">&#10003; ./backups/restore.sh generated</div>
-          </div>
+          {action_tiles}
         </div>
+        {action_note}
       </div>
 
       <!-- Removed Packages List -->
       <div class="card col-12">
         <div class="card-title">
           <span>Decommissioned Packages & Telemetry ({len(removed_list)} Total)</span>
-          <span class="badge badge-success">No Data Wiped (-k retained)</span>
+          <span class="badge">{package_badge}</span>
         </div>
         <div class="chips-wrapper">
           {removed_chips or '<span style="color:var(--text-muted);">No packages were removed.</span>'}
@@ -690,7 +735,121 @@ def generate_html_report(before_data, after_data, diff, output_path):
         f.write(html)
 
 
-def cmd_compare(before_label, after_label):
+def load_actions(path=None):
+    """Return the recorded action log, or ``None`` when nothing was logged."""
+    path = Path(path) if path else BACKUPS_DIR / "actions.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except ValueError:
+        print(f"[!] {path} is not valid JSON; ignoring it.", file=sys.stderr)
+        return None
+    if isinstance(data, list):
+        data = {"version": 1, "actions": data}
+    if not isinstance(data, dict) or not isinstance(data.get("actions"), list):
+        print(f"[!] {path} has no 'actions' list; ignoring it.", file=sys.stderr)
+        return None
+    return data
+
+
+def save_actions(data, path=None):
+    path = Path(path) if path else BACKUPS_DIR / "actions.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+
+
+def cmd_log_action(args):
+    """Append one change to backups/actions.json (the single source of truth)."""
+    data = load_actions(args.actions) or {
+        "version": 1,
+        "created": datetime.datetime.now().isoformat(timespec="seconds"),
+        "device": {},
+        "actions": [],
+    }
+    if not data.get("device") and not args.no_device_probe:
+        device = get_device_info()
+        data["device"] = {
+            key: device.get(key)
+            for key in ("brand", "model", "device", "android_version", "build_id", "serial")
+        }
+    action = {
+        "kind": args.kind,
+        "target": args.target,
+        "command": (args.command or "").strip(),
+        "restore": (args.restore or "").strip(),
+        "result": args.result,
+        "note": (args.note or "").strip(),
+        "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+    data["actions"].append(action)
+    save_actions(data, args.actions)
+    total = len(data["actions"])
+    print(f"[+] Logged {args.kind} -> {args.target} ({args.result}). Actions recorded: {total}.")
+    if not action["restore"] and args.result == "ok":
+        print("[!] No --restore command given: this action cannot be undone by restore.sh.", file=sys.stderr)
+
+
+def cmd_restore_script(args):
+    """Render backups/restore.sh from the action log, newest action first."""
+    data = load_actions(args.actions)
+    if not data or not data.get("actions"):
+        print("Error: no action log found, so there is nothing to reverse.", file=sys.stderr)
+        return 1
+
+    reversible = [
+        action
+        for action in reversed(data["actions"])
+        if (action.get("restore") or "").strip() and action.get("result") in ("ok", "already", "noop")
+    ]
+    if not reversible:
+        print("Error: none of the logged actions has a restore command.", file=sys.stderr)
+        return 1
+
+    device = data.get("device") or {}
+    lines = [
+        "#!/usr/bin/env bash",
+        "# ==============================================================================",
+        "# cleanyourdroid reversal script",
+        "# Generated from backups/actions.json - do not edit by hand, re-run:",
+        "#   python3 tools/audit.py restore-script",
+        f"# Device: {device.get('brand', '?')} {device.get('model', '?')} "
+        f"({device.get('device', '?')}) - Android {device.get('android_version', '?')}",
+        f"# Actions: {len(reversible)} reversible of {len(data['actions'])} recorded",
+        "# ==============================================================================",
+        "set -euo pipefail",
+        "",
+        '# Override with: ADB="adb -s <serial>" bash backups/restore.sh',
+        'ADB=${ADB:-adb}',
+        "",
+    ]
+    for action in reversible:
+        restore = " ".join(action["restore"].split())
+        if restore.startswith("adb "):
+            restore = "${ADB}" + restore[len("adb"):]
+        note = action.get("target") or action.get("kind") or "action"
+        lines.append(f"# {action.get('kind', 'action')}: {note}")
+        lines.append(f'{restore} || echo "[!] failed: {restore}" >&2')
+        lines.append("")
+    lines.append('echo "[+] Done. Reboot the phone to be sure."')
+
+    target = Path(args.output) if args.output else BACKUPS_DIR / "restore.sh"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines) + "\n")
+    try:
+        if args.output is None:
+            os.chmod(target, 0o755)
+    except OSError:
+        pass
+    print(f"[+] Reversal script written to {target} ({len(reversible)} commands).")
+    return 0
+
+
+def cmd_compare(before_label, after_label, actions_path=None):
     """Compare two snapshots, render terminal ASCII card, and save report.html."""
     before_file = BACKUPS_DIR / f"{before_label}.json"
     after_file = BACKUPS_DIR / f"{after_label}.json"
@@ -702,10 +861,16 @@ def cmd_compare(before_label, after_label):
         print(f"Error: After snapshot '{after_file}' does not exist.", file=sys.stderr)
         sys.exit(1)
 
-    with open(before_file, "r", encoding="utf-8") as f:
-        before_data = json.load(f)
-    with open(after_file, "r", encoding="utf-8") as f:
-        after_data = json.load(f)
+    try:
+        with open(before_file, "r", encoding="utf-8") as f:
+            before_data = json.load(f)
+        with open(after_file, "r", encoding="utf-8") as f:
+            after_data = json.load(f)
+    except ValueError as exc:
+        print(f"Error: a snapshot is corrupt ({exc}). Re-run `snapshot`.", file=sys.stderr)
+        sys.exit(1)
+
+    actions = load_actions(actions_path)
 
     # Compute deltas
     b_pkgs = set(before_data.get("packages", {}).get("list", []))
@@ -716,15 +881,20 @@ def cmd_compare(before_label, after_label):
     a_pkg_count = after_data.get("packages", {}).get("total_enabled_count", len(a_pkgs))
     pkgs_removed_count = b_pkg_count - a_pkg_count
 
-    b_free_ram = before_data.get("memory", {}).get("free_ram_mb", 0)
-    a_free_ram = after_data.get("memory", {}).get("free_ram_mb", 0)
+    b_free_ram = before_data.get("memory", {}).get("free_ram_mb", 0) or 0
+    a_free_ram = after_data.get("memory", {}).get("free_ram_mb", 0) or 0
     free_delta = round(a_free_ram - b_free_ram, 1)
 
-    b_used_ram = before_data.get("memory", {}).get("used_ram_mb", 0)
-    a_used_ram = after_data.get("memory", {}).get("used_ram_mb", 0)
+    b_used_ram = before_data.get("memory", {}).get("used_ram_mb", 0) or 0
+    a_used_ram = after_data.get("memory", {}).get("used_ram_mb", 0) or 0
     used_delta = round(b_used_ram - a_used_ram, 1)
 
-    # Active RAM freed is primary metric
+    # Available RAM is total - used; older snapshots predate the field.
+    total_ram = after_data.get("memory", {}).get("total_ram_mb", 0) or before_data.get("memory", {}).get("total_ram_mb", 0) or 0
+    b_avail_ram = before_data.get("memory", {}).get("available_ram_mb") or (round(total_ram - b_used_ram, 1) if total_ram else b_free_ram)
+    a_avail_ram = after_data.get("memory", {}).get("available_ram_mb") or (round(total_ram - a_used_ram, 1) if total_ram else a_free_ram)
+    avail_delta = round(a_avail_ram - b_avail_ram, 1)
+
     ram_freed = used_delta if used_delta > 0 else free_delta
 
     device = after_data.get("device", before_data.get("device", {}))
@@ -736,45 +906,58 @@ def cmd_compare(before_label, after_label):
         "packages_removed": pkgs_removed_count,
         "ram_freed_mb": ram_freed,
         "used_ram_reduction_mb": used_delta,
+        "available_before_mb": b_avail_ram,
+        "available_after_mb": a_avail_ram,
+        "available_delta_mb": avail_delta,
+        "free_delta_mb": free_delta,
         "removed_packages_list": removed_packages,
     }
 
-    # Format signs cleanly without '+-'
-    if free_delta > 0:
-        free_sign = f"+{free_delta}"
-    elif free_delta < 0:
-        free_sign = f"{free_delta}"
+    def signed(value, positive_prefix="+", negative_prefix=""):
+        if value > 0:
+            return f"{positive_prefix}{value}"
+        if value < 0:
+            return f"{value}"
+        return "0.0"
+
+    used_sign = f"-{used_delta}" if used_delta > 0 else signed(used_delta, "+", "")
+    avail_sign = signed(avail_delta)
+    free_sign = signed(free_delta)
+    ram_freed_hdr = signed(ram_freed)
+
+    def row(label, before, after, delta):
+        return f"│ {label:<26}│ {before:<12} │ {after:<12} │ {delta:<12} │"
+
+    def note(text):
+        return f"│ {text[:71]:<71}│"
+
+    card = "\n".join(
+        [
+            "┌────────────────────────────────────────────────────────────────────────┐",
+            "│                      CLEANYOURDROID OPTIMIZATION REPORT                │",
+            "├────────────────────────────────────────────────────────────────────────┤",
+            f"│ Device:           {device_title[:53]:<53}│",
+            f"│ OS & Build:       {build_str[:53]:<53}│",
+            f"│ Chipset / SoC:    {soc_str[:53]:<53}│",
+            "├────────────────────────────────────────────────────────────────────────┤",
+            "│ METRIC                    │ BEFORE       │ AFTER        │ DELTA        │",
+            "├───────────────────────────┼──────────────┼──────────────┼──────────────┤",
+            row("Enabled Packages", b_pkg_count, a_pkg_count, f"-{pkgs_removed_count}"),
+            row("Used RAM (PSS)", f"{b_used_ram} MB", f"{a_used_ram} MB", f"{used_sign} MB"),
+            row("Available RAM", f"{b_avail_ram} MB", f"{a_avail_ram} MB", f"{avail_sign} MB"),
+            row("Free RAM (incl. cache)", f"{b_free_ram} MB", f"{a_free_ram} MB", f"{free_sign} MB"),
+            "├────────────────────────────────────────────────────────────────────────┤",
+            note("Scope: user-0 packages + settings only; APKs stay in /system."),
+            note(f"Available RAM gain: {ram_freed_hdr} MB (total minus used, dumpsys PSS)."),
+        ]
+    )
+    if actions and actions.get("actions"):
+        reversible = sum(1 for a in actions["actions"] if (a.get("restore") or "").strip())
+        card += "\n" + note(f"Action log: {len(actions['actions'])} recorded, {reversible} reversible.")
+        card += "\n" + note("Reversal: bash ./backups/restore.sh")
     else:
-        free_sign = "0.0"
-
-    if used_delta > 0:
-        used_sign = f"-{used_delta}"
-    elif used_delta < 0:
-        used_sign = f"+{abs(used_delta)}"
-    else:
-        used_sign = "0.0"
-
-    ram_freed_hdr = f"+{ram_freed}" if ram_freed >= 0 else f"{ram_freed}"
-
-    card = f"""
-┌────────────────────────────────────────────────────────────────────────┐
-│                      CLEANYOURDROID OPTIMIZATION REPORT                │
-├────────────────────────────────────────────────────────────────────────┤
-│ Device:           {device_title[:53]:<53}│
-│ OS & Build:       {build_str[:53]:<53}│
-│ Chipset / SoC:    {soc_str[:53]:<53}│
-├────────────────────────────────────────────────────────────────────────┤
-│ METRIC                    │ BEFORE       │ AFTER        │ DELTA        │
-├───────────────────────────┼──────────────┼──────────────┼──────────────┤
-│ Enabled Packages          │ {b_pkg_count:<12} │ {a_pkg_count:<12} │ -{pkgs_removed_count:<11} │
-│ Active Used RAM           │ {b_used_ram:<9} MB │ {a_used_ram:<9} MB │ {used_sign:<8} MB │
-│ Available Memory Buffer   │ {b_free_ram:<9} MB │ {a_free_ram:<9} MB │ {free_sign:<8} MB │
-├────────────────────────────────────────────────────────────────────────┤
-│ Status: 100% Rootless Clean & Optimized                                │
-│ Active RAM Gain: {ram_freed_hdr} MB freed from background services{" ":<24}│
-│ Reversibility: Ready via ./backups/restore.sh                          │
-└────────────────────────────────────────────────────────────────────────┘
-"""
+        card += "\n" + note("Action log: none - only the snapshot diff above is proven.")
+    card += "\n└────────────────────────────────────────────────────────────────────────┘"
     print(card)
 
     if removed_packages:
@@ -786,9 +969,12 @@ def cmd_compare(before_label, after_label):
 
     # Write HTML report
     html_report_path = BACKUPS_DIR / "report.html"
-    generate_html_report(before_data, after_data, diff, html_report_path)
-    print(f"\n[+] Interactive Dark-Mode HTML Report generated at:")
+    generate_html_report(before_data, after_data, diff, html_report_path, actions=actions)
+    print("\n[+] Interactive Dark-Mode HTML Report generated at:")
     print(f"    -> {html_report_path.resolve()}\n")
+    if not actions:
+        print("[!] No backups/actions.json: log every change with `tools/audit.py log-action`", file=sys.stderr)
+        print("    so the report and restore.sh reflect what actually ran.", file=sys.stderr)
 
 
 def main():
@@ -797,9 +983,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
   python3 tools/audit.py snapshot before
+  python3 tools/audit.py log-action --kind package --target com.miui.msa.global \\
+      --command "adb shell pm uninstall -k --user 0 com.miui.msa.global" \\
+      --restore "adb shell cmd package install-existing com.miui.msa.global"
   python3 tools/audit.py snapshot after
   python3 tools/audit.py compare before after
+  python3 tools/audit.py restore-script
 """,
+    )
+    parser.add_argument("--adb", help="Path (or JSON argv array) to the adb binary")
+    parser.add_argument("--serial", help="ADB serial of the target device")
+    parser.add_argument(
+        "--backups",
+        default="backups",
+        help="Directory for snapshots, the action log and the report (default: backups)",
     )
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
@@ -811,14 +1008,56 @@ def main():
     comp_parser = subparsers.add_parser("compare", help="Compare two snapshots and output summary")
     comp_parser.add_argument("before", help="Baseline snapshot label (e.g. 'before')")
     comp_parser.add_argument("after", help="Post-optimization snapshot label (e.g. 'after')")
+    comp_parser.add_argument("--actions", help="Action log to embed in the report (default: backups/actions.json)")
+
+    # log-action command
+    log_parser = subparsers.add_parser(
+        "log-action", help="Record one executed change (feeds report.html and restore.sh)"
+    )
+    log_parser.add_argument(
+        "--kind",
+        default="package",
+        choices=("package", "appops", "settings", "dexopt", "cache", "other"),
+        help="Category of the change (default: package)",
+    )
+    log_parser.add_argument("--target", required=True, help="Package name or setting key")
+    log_parser.add_argument("--command", help="Exact command that was executed")
+    log_parser.add_argument("--restore", help="Exact command that reverses it")
+    log_parser.add_argument(
+        "--result",
+        default="ok",
+        choices=("ok", "failed", "skipped", "already", "noop"),
+        help="Outcome of the command (default: ok)",
+    )
+    log_parser.add_argument("--note", help="Free-form note shown in the log")
+    log_parser.add_argument("--actions", help="Action log path (default: backups/actions.json)")
+    log_parser.add_argument(
+        "--no-device-probe",
+        action="store_true",
+        help="Do not query the phone for device metadata (offline use)",
+    )
+
+    # restore-script command
+    restore_parser = subparsers.add_parser(
+        "restore-script", help="Render backups/restore.sh from the recorded action log"
+    )
+    restore_parser.add_argument("--actions", help="Action log path (default: backups/actions.json)")
+    restore_parser.add_argument("--output", help="Where to write the script (default: backups/restore.sh)")
 
     args = parser.parse_args()
+    _ADB_OPTIONS.update(binary=args.adb, serial=args.serial)
+    global BACKUPS_DIR
+    BACKUPS_DIR = Path(args.backups)
 
     try:
         if args.subcommand == "snapshot":
             cmd_snapshot(args.label)
         elif args.subcommand == "compare":
-            cmd_compare(args.before, args.after)
+            cmd_compare(args.before, args.after, args.actions)
+        elif args.subcommand == "log-action":
+            cmd_log_action(args)
+        elif args.subcommand == "restore-script":
+            sys.exit(cmd_restore_script(args))
     except RuntimeError as e:
         print(f"\n[!] {e}", file=sys.stderr)
         sys.exit(1)
