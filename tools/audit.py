@@ -762,18 +762,42 @@ def save_actions(data, path=None):
         handle.write("\n")
 
 
-def cmd_log_action(args):
-    """Append one change to backups/actions.json (the single source of truth)."""
-    data = load_actions(args.actions) or {
+def record_action(kind, target, command="", restore="", result="ok", note="", path=None, device=None):
+    """Append one action to the log and return the log data.
+
+    Shared by audit.py and tune.py so both tools write the same schema into
+    ``backups/actions.json`` and, therefore, into ``restore.sh``.
+    """
+    data = load_actions(path) or {
         "version": 1,
         "created": datetime.datetime.now().isoformat(timespec="seconds"),
         "device": {},
         "actions": [],
     }
-    if not data.get("device") and not args.no_device_probe:
-        device = get_device_info()
-        data["device"] = {
-            key: device.get(key)
+    if device and not data.get("device"):
+        data["device"] = device
+    data["actions"].append(
+        {
+            "kind": kind,
+            "target": target,
+            "command": (command or "").strip(),
+            "restore": (restore or "").strip(),
+            "result": result,
+            "note": (note or "").strip(),
+            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
+    )
+    save_actions(data, path)
+    return data
+
+
+def cmd_log_action(args):
+    """Append one change to backups/actions.json (the single source of truth)."""
+    device = {}
+    if not args.no_device_probe:
+        info = get_device_info()
+        device = {
+            key: info.get(key)
             for key in ("brand", "model", "device", "android_version", "build_id", "serial")
         }
     action = {
@@ -783,10 +807,9 @@ def cmd_log_action(args):
         "restore": (args.restore or "").strip(),
         "result": args.result,
         "note": (args.note or "").strip(),
-        "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
     }
-    data["actions"].append(action)
-    save_actions(data, args.actions)
+    data = record_action(args.kind, args.target, action["command"], action["restore"],
+                         args.result, action["note"], path=args.actions, device=device)
     total = len(data["actions"])
     print(f"[+] Logged {args.kind} -> {args.target} ({args.result}). Actions recorded: {total}.")
     if not action["restore"] and args.result == "ok":
