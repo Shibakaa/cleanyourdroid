@@ -22,6 +22,7 @@ Examples
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import sys
 from collections import OrderedDict
@@ -73,7 +74,7 @@ def load_json(path):
 
 
 def load_database():
-    """Return (bloat entries indexed by package, blacklist set, categories)."""
+    """Return (bloat entries, blacklist set, wildcard patterns, duplicates)."""
     root = repo_root()
     bloat = load_json(root / FILES["bloatware"])
     blacklist = load_json(root / FILES["blacklist"])
@@ -99,7 +100,21 @@ def load_database():
             if package:
                 protected[package] = dict(item, category=category)
 
-    return entries, protected, duplicates
+    patterns = []
+    for item in blacklist.get("patterns", []):
+        pattern = item.get("pattern", "").strip()
+        if pattern:
+            patterns.append(dict(item, pattern=pattern))
+
+    return entries, protected, patterns, duplicates
+
+
+def pattern_hit(package, patterns):
+    """Return the first blacklist pattern matching ``package``, or None."""
+    for item in patterns:
+        if fnmatch.fnmatchcase(package, item["pattern"]):
+            return item
+    return None
 
 
 def read_packages_file(path):
@@ -123,6 +138,19 @@ def read_packages_file(path):
     return sorted(set(packages))
 
 
+def read_home(adb):
+    """Current home activity, e.g. ``com.miui.home``."""
+    output = adb.shell(
+        ["cmd", "package", "resolve-activity", "--brief", "-a", "android.intent.action.MAIN",
+         "-c", "android.intent.category.HOME"]
+    )
+    for line in reversed(output.splitlines()):
+        line = line.strip()
+        if "/" in line and " " not in line:
+            return line.split("/")[0]
+    return ""
+
+
 def read_device(adb):
     info = {
         "brand": adb.getprop("ro.product.brand") or "Unknown",
@@ -131,6 +159,8 @@ def read_device(adb):
         "android": adb.getprop("ro.build.version.release") or "Unknown",
         "build": adb.getprop("ro.build.display.id") or "Unknown",
         "serial": adb.serial,
+        "home": read_home(adb),
+        "ime": (adb.shell(["settings", "get", "secure", "default_input_method"]).strip().split("/")[0]),
     }
     return info
 
@@ -138,13 +168,34 @@ def read_device(adb):
 # ------------------------------------------------------------------- plan
 
 
-def classify(entries, protected, installed, disabled):
+def classify(entries, protected, patterns, installed, disabled, device=None):
     groups = OrderedDict((key, []) for key in GROUP_TITLES)
     unknown = []
     protected_present = []
+    protected_current = []
 
     installed_set = set(installed)
+    current = {}
+    if device:
+        if device.get("home"):
+            current[device["home"]] = "current launcher"
+        if device.get("ime") and device["ime"] not in ("null", ""):
+            current[device["ime"]] = "current keyboard"
+
     for package in sorted(installed_set):
+        # The active launcher / IME is protected even when it is in neither
+        # database: removing it before a replacement exists is how phones end
+        # up without a home screen.
+        if package in current:
+            protected_current.append({"package": package, "reason": current[package]})
+
+        # Wildcards protect whole families (com.google.android.gms.*, *.overlay)
+        # whether or not the package has its own database entry.
+        hit = pattern_hit(package, patterns)
+        if hit:
+            protected_present.append(protected.get(package) or dict(hit, package=package))
+            continue
+
         entry = entries.get(package)
         if entry is None:
             continue
@@ -166,18 +217,28 @@ def classify(entries, protected, installed, disabled):
         if package in protected and protected[package] not in protected_present:
             protected_present.append(protected[package])
 
+    unique_protected = []
+    seen = set()
+    for item in protected_present:
+        package = item.get("package")
+        if package in seen:
+            continue
+        seen.add(package)
+        unique_protected.append(item)
+    protected_present = unique_protected
+
     already_disabled = [entries[p] for p in sorted(set(disabled)) if p in entries]
 
     for package in sorted(set(disabled)):
         if package not in entries and package not in protected:
             unknown.append(package)
 
-    return groups, protected_present, already_disabled, unknown
+    return groups, protected_present, protected_current, already_disabled, unknown
 
 
-def plan_payload(entries, protected, installed, disabled, device, source):
-    groups, protected_present, already_disabled, unknown = classify(
-        entries, protected, installed, disabled
+def plan_payload(entries, protected, patterns, installed, disabled, device, source):
+    groups, protected_present, protected_current, already_disabled, unknown = classify(
+        entries, protected, patterns, installed, disabled, device
     )
     matched = sum(len(group) for group in groups.values())
     decisions = len(groups["user_discretion"]) + len(groups["tradeoff"])
@@ -198,6 +259,7 @@ def plan_payload(entries, protected, installed, disabled, device, source):
         },
         "groups": OrderedDict((key, [trim(item) for item in groups[key]]) for key in groups),
         "protected_present": [item.get("package") for item in protected_present],
+        "protected_current": protected_current,
         "already_disabled": [item.get("package") for item in already_disabled],
         "unlisted_disabled": unknown,
     }
@@ -250,6 +312,12 @@ def render_table(payload):
         lines.append("")
 
     counts = payload["counts"]
+    current = payload.get("protected_current") or []
+    if current:
+        lines.append(
+            "protected now: %s"
+            % ", ".join("%s (%s)" % (item["package"], item["reason"]) for item in current)
+        )
     lines.append(
         "installed %d | candidates %d | safe %d | decide %d | already off %d | protected %d"
         % (
@@ -322,6 +390,14 @@ def render_markdown(payload):
             "> %d blacklisted package(s) are present and will never be proposed "
             "(e.g. %s)." % (len(protected), ", ".join("`%s`" % p for p in protected[:3]))
         )
+    current = payload.get("protected_current") or []
+    if current:
+        lines.append("")
+        lines.append(
+            "> Protected by role: %s. Removing the active launcher or keyboard before a "
+            "replacement exists leaves the phone unnavigable."
+            % ", ".join("`%s` (%s)" % (item["package"], item["reason"]) for item in current)
+        )
     return "\n".join(lines)
 
 
@@ -359,7 +435,7 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    entries, protected, duplicates = load_database()
+    entries, protected, patterns, duplicates = load_database()
 
     problems = []
     if duplicates:
@@ -369,13 +445,19 @@ def main(argv=None):
         problems.append(
             "package(s) present in both databases: %s" % ", ".join(overlaps)
         )
+    swallowed = sorted(pkg for pkg in entries if pattern_hit(pkg, patterns))
+    if swallowed:
+        problems.append(
+            "blacklist pattern(s) also match bloatware entries (the planner would never "
+            "propose them): %s" % ", ".join(swallowed)
+        )
     if args.validate:
         if problems:
             for problem in problems:
                 print("[!] " + problem, file=sys.stderr)
             return 2
-        print("[+] Databases OK: %d bloatware entries, %d protected packages, no overlap."
-              % (len(entries), len(protected)))
+        print("[+] Databases OK: %d bloatware entries, %d protected packages, %d patterns, no conflicts."
+              % (len(entries), len(protected), len(patterns)))
         return 0
 
     for problem in problems:
@@ -401,7 +483,7 @@ def main(argv=None):
         print("[!] No installed packages were returned. Is the device unlocked and authorized?", file=sys.stderr)
         return 1
 
-    payload = plan_payload(entries, protected, installed, disabled, device, source)
+    payload = plan_payload(entries, protected, patterns, installed, disabled, device, source)
 
     if args.format == "json":
         print(render_json(payload))
