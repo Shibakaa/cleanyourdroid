@@ -117,6 +117,24 @@
         "name": "Key Chain",
         "risk_level": "CRITICAL_BREAKAGE",
         "reason": "Stores cryptographic credentials and SSL certificates for system and banking applications."
+      },
+      {
+        "package": "com.android.vending",
+        "name": "Google Play Store",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Package installation, app updates and Play Integrity checks. Disabling it leaves the device without any way to install or update apps."
+      },
+      {
+        "package": "com.android.launcher3",
+        "name": "AOSP Launcher",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Fallback home screen on AOSP-style builds. Disabling without another launcher active leaves the device unnavigable."
+      },
+      {
+        "package": "com.android.dialer",
+        "name": "AOSP Dialer",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default phone UI on AOSP builds. Disabling removes the ability to place or answer calls."
       }
     ],
     "xiaomi_hyperos": [
@@ -273,6 +291,38 @@
         "name": "Oplus Athena Process Manager",
         "risk_level": "CRITICAL_BREAKAGE",
         "reason": "Low-level memory and process manager. Disabling causes unstable process lifecycle and UI freezes."
+      }
+    ],
+    "google_pixel": [
+      {
+        "package": "com.google.android.apps.nexuslauncher",
+        "name": "Pixel Launcher",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Default home screen, recent apps and the At a Glance widget on Pixel. Disabling it without another launcher installed makes the device unnavigable."
+      },
+      {
+        "package": "com.google.android.as",
+        "name": "Android System Intelligence",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Powers Now Playing, Live Caption, smart reply, live translation and screen attention. Disabling it breaks those features and can crash the launcher's smartspace."
+      },
+      {
+        "package": "com.google.android.apps.turbo",
+        "name": "Device Health Services",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Adaptive Battery predictions, battery run-time estimates and thermal profiles. Removing it degrades battery life reporting and can break power management."
+      },
+      {
+        "package": "com.google.android.dialer",
+        "name": "Google Phone",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "The actual dialer UI on Pixel. Disabling it removes incoming-call screens and emergency dialling."
+      },
+      {
+        "package": "com.google.android.settings.intelligence",
+        "name": "Settings Intelligence (Google)",
+        "risk_level": "CRITICAL_BREAKAGE",
+        "reason": "Settings search index and suggestion provider on Pixel. Disabling it leaves Settings search empty and breaks some quick-setting flows."
       }
     ]
   }

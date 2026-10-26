@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.0.0",
-  "description": "Curated database of safe-to-remove bloatware, tracking daemons, adware engines, and hidden background installers across Android OEM skins.",
+  "version": "1.1.0",
+  "description": "Curated database of safe-to-remove bloatware, tracking daemons, adware engines, and hidden background installers across Android OEM skins. Note: AOSP/Pixel builds ship no OEM ad SDKs, so the google_pixel category lists preinstalled apps worth a decision, not telemetry.",
   "categories": {
     "ads_and_telemetry": [
       {
@@ -331,6 +331,15 @@
         "recommendation": "safe_removal",
         "description": "Oppo/Realme lock screen wallpaper cycler delivering sponsored content and news.",
         "impact": "Stops lock screen ad delivery and saves background data."
+      },
+      {
+        "package": "cn.wps.xiaomi.abroad.lite",
+        "name": "WPS Office (Xiaomi preinstall)",
+        "oem": "xiaomi_hyperos",
+        "category": "oem_bloat",
+        "recommendation": "user_discretion",
+        "description": "Kingsoft WPS Office bundled on Russian and Indian ROMs. Duplicate of any office suite you install yourself.",
+        "impact": "Removes a file-association handler and its background document service."
       }
     ],
     "ru_region_preloads": [
@@ -459,6 +468,125 @@
         "recommendation": "user_discretion",
         "description": "Russian public services portal preinstall stub. Remove if unused or reinstall from Play/RuStore on demand.",
         "impact": "Frees storage."
+      },
+      {
+        "package": "com.yandex.preinstallsatellite",
+        "name": "Yandex Preinstall Satellite",
+        "oem": "ru_region_law",
+        "category": "ru_region_preloads",
+        "recommendation": "safe_removal",
+        "description": "Silent installer stub that provisions the rest of the Yandex suite after first boot and after OTA.",
+        "impact": "Stops background partner-app provisioning; no user-facing app is lost."
+      }
+    ],
+    "google_pixel": [
+      {
+        "package": "com.google.android.apps.tips",
+        "name": "Pixel Tips",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "safe_removal",
+        "description": "Post-setup tutorial app that keeps a background receiver and 'tips' notifications. No system dependency.",
+        "impact": "Removes a permanent notification source; nothing else changes."
+      },
+      {
+        "package": "com.google.android.videos",
+        "name": "Google TV / Play Movies stub",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "safe_removal",
+        "description": "Storefront stub for purchased movies. Only present on some builds and re-installable from Play.",
+        "impact": "Removes an unused store stub."
+      },
+      {
+        "package": "com.google.android.apps.magazines",
+        "name": "Google News (preinstall)",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "News aggregator preinstall. Remove if you read news elsewhere; re-installable from Play.",
+        "impact": "Frees a background sync account."
+      },
+      {
+        "package": "com.google.android.apps.wellbeing",
+        "name": "Digital Wellbeing",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Screen-time tracker and app timers. Disabling also disables Focus mode, Bedtime mode and app limits.",
+        "impact": "Stops usage-stats collection; you lose screen-time features."
+      },
+      {
+        "package": "com.google.android.apps.safetyhub",
+        "name": "Personal Safety",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Emergency SOS, car-crash detection and safety check-ins. Do not remove if you rely on emergency features.",
+        "impact": "Removes a background location listener; emergency features stop working."
+      },
+      {
+        "package": "com.google.android.apps.weather",
+        "name": "Pixel Weather",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Pixel's weather app. Safe to remove if you use another weather app or widget.",
+        "impact": "Frees a periodic location/weather fetch."
+      },
+      {
+        "package": "com.google.android.apps.bard",
+        "name": "Gemini",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Gemini assistant preinstall on recent Pixels. Removing also removes the assistant entry point; re-installable from Play.",
+        "impact": "Frees RAM held by an always-warm assistant process."
+      },
+      {
+        "package": "com.google.android.youtube",
+        "name": "YouTube",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Preinstalled YouTube. Google already lets you uninstall it for the user in Settings; this automates that.",
+        "impact": "Removes a background playback and notification service."
+      },
+      {
+        "package": "com.google.android.apps.youtube.music",
+        "name": "YouTube Music",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Preinstalled YouTube Music. Remove if you stream through Spotify or play local files.",
+        "impact": "Frees a media-session service and its cache."
+      },
+      {
+        "package": "com.google.android.apps.photos",
+        "name": "Google Photos",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Preinstalled Photos with backup. Removing for user 0 stops background uploads and photo indexing.",
+        "impact": "Stops background backup; the Files app still opens local images."
+      },
+      {
+        "package": "com.android.chrome",
+        "name": "Google Chrome",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "System Chrome, often the only browser. Keep at least one browser installed before removing it.",
+        "impact": "Frees a background sync service."
+      },
+      {
+        "package": "com.google.android.apps.subscriptions.red",
+        "name": "Google One",
+        "oem": "google_pixel",
+        "category": "google_pixel",
+        "recommendation": "user_discretion",
+        "description": "Storage-subscription front end. Only preinstalled on some builds; re-installable from Play.",
+        "impact": "Frees a rarely used account sync."
       }
     ]
   }
