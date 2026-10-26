@@ -1,14 +1,12 @@
-# Backups directory and generated reports
-backups/
-*.txt
-before.json
-after.json
-*_before.*
-*_after.*
-*.sh
+# Generated session output: snapshots, action log, reversal script, HTML report.
+# Scoped to the folder on purpose - a global `*.sh` or `*.txt` rule would also
+# swallow real files such as tools/*.sh or requirements.txt.
+backups/*
+!backups/.gitkeep
 
-# Platform tools binaries
+# Platform tools binaries (downloaded, never committed)
 tools/platform-tools/
+/platform-tools/
 *.zip
 
 # Python caches and bytecode

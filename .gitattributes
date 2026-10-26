@@ -1,0 +1,14 @@
+# Keep one line-ending convention across the repo: the agent instructions,
+# databases and scripts are all LF. Without this, Git rewrites them to CRLF on
+# Windows checkouts and every diff becomes noise.
+* text=auto eol=lf
+
+*.py text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+# Downloaded binaries stay binary.
+*.exe binary
+*.dll binary
+*.zip binary
