@@ -2,8 +2,8 @@
 """A tiny stand-in for `adb`, used by the test suite and for offline demos.
 
 It answers the handful of commands cleanyourdroid actually issues, so
-``audit.py`` and ``plan.py`` can be exercised on a machine with no phone
-attached (CI included).
+``audit.py``, ``plan.py`` and ``tune.py`` can be exercised on a machine with no
+phone attached (CI included).
 
 Usage
 -----
@@ -11,6 +11,11 @@ Usage
     set FAKE_CYD_STATE=before        # or "after"
     python3 tools/audit.py snapshot before
     python3 tools/plan.py
+    python3 tools/tune.py status
+
+`settings put`, `am set-standby-bucket` and `cmd appops set` are remembered in a
+small JSON file (FAKE_CYD_STORE, defaults to the temp directory) so a value can
+be read back after writing it.
 
 Error paths:
     set FAKE_CYD_FAIL=unauthorized   -> `adb devices` reports an unauthorized phone
@@ -20,10 +25,60 @@ Error paths:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+import tempfile
 
 SERIAL = "FAKE0CLEAN"
+DEFAULT_BUCKET = 30
+
+# Deliberately not in either database: the planner must still protect them
+# because they are the current launcher / keyboard.
+HOME_COMPONENT = "com.example.launcher/.Launcher"
+DEFAULT_SETTINGS = {
+    "global/window_animation_scale": "1.0",
+    "global/transition_animation_scale": "1.0",
+    "global/animator_duration_scale": "1.0",
+    "global/wifi_scan_always_enabled": "1",
+    "global/ble_scan_always_enabled": "1",
+    "global/private_dns_mode": "off",
+    "global/private_dns_specifier": "",
+    "global/settings_enable_monitor_phantom_procs": "true",
+    "secure/default_input_method": "com.example.keyboard/.Ime",
+}
+
+
+def store_path():
+    override = os.environ.get("FAKE_CYD_STORE")
+    if override:
+        return override
+    return os.path.join(tempfile.gettempdir(), "cyd_fake_store.json")
+
+
+def read_state():
+    try:
+        with open(store_path(), "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_state(state):
+    try:
+        with open(store_path(), "w", encoding="utf-8") as handle:
+            json.dump(state, handle)
+    except OSError:
+        pass
+
+
+def bucket_number(value):
+    names = {"active": 10, "working_set": 20, "frequent": 30, "rare": 40, "restricted": 45, "never": 50}
+    if str(value).isdigit():
+        return int(value)
+    return names.get(str(value), DEFAULT_BUCKET)
+
 
 BASE_PACKAGES = [
     # Android / Google core (must never be proposed)
@@ -81,6 +136,9 @@ BASE_PACKAGES = [
     "com.instagram.android",
     "org.telegram.messenger",
     "com.zhiliaoapp.musically",
+    # Current launcher / keyboard: in neither database, protected by role only
+    "com.example.launcher",
+    "com.example.keyboard",
 ]
 
 REMOVED_IN_AFTER = [
@@ -192,7 +250,7 @@ def packages():
 
 
 def disabled_packages():
-    return []
+    return ["com.facebook.katana", "com.miui.yellowpage"]
 
 
 def emit(text=""):
@@ -251,6 +309,64 @@ def handle_shell(args):
         emit("\n".join("package:%s" % name for name in names))
         return 0
 
+    # --- settings / appops / standby, persisted so a put can be read back ---
+
+    if args[:1] == ["settings"]:
+        return handle_settings(args[1:])
+
+    if args[:2] == ["am", "get-standby-bucket"]:
+        emit(read_state().get("bucket:" + args[2], str(DEFAULT_BUCKET)))
+        return 0
+
+    if args[:2] == ["am", "set-standby-bucket"]:
+        store = read_state()
+        store["bucket:" + args[2]] = str(bucket_number(args[3]))
+        write_state(store)
+        return 0
+
+    if args[:3] == ["cmd", "appops", "get"]:
+        store = read_state()
+        mode = store.get("appop:%s:%s" % (args[3], args[4]), "allow")
+        emit("%s: %s" % (args[4], mode))
+        return 0
+
+    if args[:3] == ["cmd", "appops", "set"]:
+        store = read_state()
+        store["appop:%s:%s" % (args[3], args[4])] = args[5]
+        write_state(store)
+        return 0
+
+    if args[:2] == ["cmd", "package"] and "resolve-activity" in args:
+        emit("priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true")
+        emit(HOME_COMPONENT)
+        return 0
+
+    emit("")
+    return 0
+
+
+def handle_settings(args):
+    if len(args) < 2:
+        emit("")
+        return 0
+    action = args[0]
+    namespace, key = args[1], args[2] if len(args) > 2 else ""
+    slot = "%s/%s" % (namespace, key)
+    store = read_state()
+
+    if action == "get":
+        emit(store.get(slot, DEFAULT_SETTINGS.get(slot, "")))
+        return 0
+    if action == "put":
+        store[slot] = args[3] if len(args) > 3 else ""
+        write_state(store)
+        emit("")
+        return 0
+    if action == "delete":
+        store.pop(slot, None)
+        write_state(store)
+        emit("")
+        return 0
     emit("")
     return 0
 

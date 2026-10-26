@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 AUDIT = ROOT / "tools" / "audit.py"
 PLAN = ROOT / "tools" / "plan.py"
+TUNE = ROOT / "tools" / "tune.py"
 FAKE_ADB = ROOT / "tests" / "fake_adb.py"
 
 
@@ -87,6 +88,86 @@ class PlanTests(ToolTestCase):
         result = self.run_tool(PLAN, "--packages-file", listing)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("com.miui.msa.global", result.stdout)
+
+    def test_current_launcher_and_keyboard_are_protected(self):
+        result = self.run_tool(PLAN)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("protected now:", result.stdout)
+        self.assertIn("com.example.launcher (current launcher)", result.stdout)
+        self.assertIn("com.example.keyboard (current keyboard)", result.stdout)
+
+    def test_wildcard_patterns_are_enforced(self):
+        self.env["FAKE_CYD_PACKAGES"] = str(self.write_package_list(
+            ["com.google.android.gms", "com.google.android.gms.ui", "com.android.systemui.overlay"]
+        ))
+        result = self.run_tool(PLAN, "--format", "json")
+        payload = json.loads(result.stdout)
+        self.assertIn("com.google.android.gms.ui", payload["protected_present"])
+        self.assertIn("com.android.systemui.overlay", payload["protected_present"])
+
+    def write_package_list(self, packages):
+        path = self.workdir / ("pkgs_%s.txt" % uuid.uuid4().hex[:8])
+        path.write_text("\n".join(packages) + "\n", encoding="utf-8")
+        return path
+
+
+class TuneTests(ToolTestCase):
+    def setUp(self):
+        super().setUp()
+        unique = self.id().split(".")[-1] + "_" + uuid.uuid4().hex[:8]
+        self.env["FAKE_CYD_STORE"] = str(self.workdir / ("store_%s.json" % unique))
+        self.backups = self.workdir
+
+    def test_list_works_without_a_device(self):
+        self.env["CLEANYOURDROID_ADB"] = str(self.workdir / "no-such-adb")
+        result = self.run_tool(TUNE, "list")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("private_dns", result.stdout)
+        self.assertIn("standby", result.stdout)
+
+    def test_dry_run_changes_nothing(self):
+        log_path = self.backups / "actions.json"
+        before = log_path.read_text(encoding="utf-8") if log_path.exists() else None
+        result = self.run_tool(TUNE, "--backups", self.backups, "apply", "--id", "animations")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("would run:", result.stdout)
+        after = log_path.read_text(encoding="utf-8") if log_path.exists() else None
+        self.assertEqual(before, after, "dry run must not touch the action log")
+
+    def test_apply_logs_reversible_actions(self):
+        result = self.run_tool(
+            TUNE, "--backups", self.backups, "apply", "--id", "animations", "--id", "private_dns", "--yes"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = json.loads((self.backups / "actions.json").read_text(encoding="utf-8"))
+        targets = [action["target"] for action in log["actions"]]
+        self.assertIn("global/window_animation_scale", targets)
+        self.assertIn("global/private_dns_mode", targets)
+        restore = [action["restore"] for action in log["actions"]]
+        self.assertTrue(all(cmd.startswith("adb shell") for cmd in restore))
+
+        script = self.run_tool(AUDIT, "--backups", self.backups, "restore-script")
+        self.assertEqual(script.returncode, 0, script.stderr)
+        text = (self.backups / "restore.sh").read_text(encoding="utf-8")
+        self.assertIn("window_animation_scale 1.0", text)
+        self.assertIn("private_dns_mode off", text)
+
+    def test_package_tweak_round_trip(self):
+        applied = self.run_tool(
+            TUNE, "--backups", self.backups, "apply", "--id", "standby",
+            "--package", "com.facebook.katana", "--yes",
+        )
+        self.assertEqual(applied.returncode, 0, applied.stderr)
+        self.assertIn("+ com.facebook.katana", applied.stdout)
+
+        status = self.run_tool(TUNE, "--backups", self.backups, "status", "--id", "standby",
+                               "--package", "com.facebook.katana")
+        self.assertIn("restricted", status.stdout)
+
+        reverted = self.run_tool(TUNE, "--backups", self.backups, "revert", "--id", "standby",
+                                 "--package", "com.facebook.katana", "--yes")
+        self.assertEqual(reverted.returncode, 0, reverted.stderr)
+        self.assertIn("reverting com.facebook.katana", reverted.stdout)
 
 
 class AuditTests(ToolTestCase):
