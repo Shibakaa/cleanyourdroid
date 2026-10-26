@@ -82,26 +82,27 @@ For each approved item, in this order:
 
 ### STAGE 4: Optional tuning (ask first, log each change)
 
-1. Background control for apps I still want to keep:
+Use `tools/tune.py` instead of hand-typing settings commands. It shows the exact command and its reversal, runs a dry run unless `--yes` is passed, and verifies the value afterwards.
+
+1. Show me the menu:
    ```bash
-   adb shell am set-standby-bucket <package> restricted
+   python3 tools/tune.py list
+   python3 tools/tune.py status
    ```
-   Warn me that aggressive AppOps settings can silence push notifications.
-2. Animation scales (0.5x, reversal is 1.0):
+2. Ask me which tweaks I want, then dry-run them:
    ```bash
-   adb shell settings put global window_animation_scale 0.5
-   adb shell settings put global transition_animation_scale 0.5
-   adb shell settings put global animator_duration_scale 0.5
+   python3 tools/tune.py apply --id animations --id private_dns
    ```
-3. Xiaomi/POCO privacy flags - read the old value first with `adb shell settings get <ns> <key>`, then set it and log the exact reversal.
-4. Cache trim (this is the step that actually frees storage):
+3. Execute only after I confirm, and tell me which ones can bite:
    ```bash
-   adb shell pm trim-caches 999G
+   python3 tools/tune.py apply --id animations --id private_dns --yes
+   python3 tools/tune.py apply --id standby --package <package> --yes
    ```
-5. ART recompilation, with a generous timeout, and report the real outcome:
-   ```bash
-   adb shell cmd package bg-dexopt-job
-   ```
+   `appops_bg` and `standby` can delay or silence push notifications - say so before applying, and prefer `standby` for messengers and banking apps.
+4. Things `tune.py` does not cover, done by hand and logged:
+   - Xiaomi/POCO privacy flags (read the old value first with `adb shell settings get <ns> <key>`).
+   - Cache trim (this is the step that actually frees storage): `adb shell pm trim-caches 999G`.
+   - ART recompilation, with a generous timeout, reporting the real outcome: `adb shell cmd package bg-dexopt-job`.
 
 ---
 

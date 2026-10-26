@@ -60,7 +60,7 @@
 | **1** | **Снимок и бэкап** | `tools/audit.py snapshot before` фиксирует ОЗУ, пакеты и топ-процессы; списки пакетов и настроек сохраняются в `backups/`. |
 | **2** | **Детерминированный план** | `tools/plan.py` сверяет установленные пакеты с `safety/known_bloatware.json` и отбрасывает всё из `safety/bootloop_blacklist.json`. Агент показывает именно эту таблицу, а не список из памяти. |
 | **3** | **Выполнение и лог** | Каждое подтвержденное изменение сразу пишется в `tools/audit.py log-action` вместе с точной командой откатa. |
-| **4** | **Тюнинг** | Standby-бакеты, анимации, рекламные флаги оболочки, очистка кэшей и компиляция ART &mdash; всё опционально и всё логируется. |
+| **4** | **Тюнинг** | Standby-бакеты, AppOps, Private DNS, анимации, очистка кэшей и компиляция ART &mdash; всё опционально, с предпросмотром команд и записью в лог. |
 | **5** | **Отчёт и откат** | `compare` печатает карточку и собирает `backups/report.html`; `restore-script` перегенерирует `backups/restore.sh` из лога. |
 
 ---
@@ -218,19 +218,22 @@ cleanyourdroid/
 ├── CLAUDE.md                  # Точка входа Claude Code (ссылается на AGENTS.md)
 ├── GEMINI.md                  # Точка входа Gemini CLI (ссылается на AGENTS.md)
 ├── PROMPT.md                  # 5-этапный интерактивный промпт для пользователя
+├── CONTRIBUTING.md            # Правила баз, профили устройств, требования к PR
 ├── README.md                  # Документация на английском
 ├── README.ru.md               # Документация на русском
 ├── safety/
-│   ├── bootloop_blacklist.json # Черный список критических системных пакетов
+│   ├── bootloop_blacklist.json # Черный список пакетов и wildcard-семейств
 │   └── known_bloatware.json    # База проверенного мусора и трекеров
 ├── tools/
 │   ├── adbkit.py              # Общий слой ADB (выбор устройства, ошибки)
 │   ├── audit.py               # Снимки, лог действий, скрипт откатa, HTML-отчёт
-│   └── plan.py                # Детерминированный план по обеим базам
+│   ├── plan.py                # Детерминированный план по обеим базам
+│   └── tune.py                # Рутлесс-тюнинг: standby, AppOps, DNS, анимации
 ├── tests/
 │   ├── fake_adb.py            # Заглушка adb, чтобы тесты шли без телефона
 │   └── test_tools.py          # Сквозные тесты (python -m unittest discover -s tests)
 └── devices/
+    ├── _template.md           # Шаблон профиля устройства для PR
     └── xiaomi/
         └── poco-f5-marble.md  # Эталонный профиль POCO F5
 ```
@@ -260,6 +263,17 @@ python3 tools/audit.py compare before after
 ```
 
 Файл `./backups/report.html` представляет собой автономный темный bento-дашборд, который утверждает только то, что было измерено или залогировано.
+
+### `tools/tune.py` &mdash; то, что не про пакеты
+```bash
+python3 tools/tune.py list                  # все твики, что меняют и чем платить
+python3 tools/tune.py status                # текущие значения на телефоне
+python3 tools/tune.py apply --id animations --id private_dns            # предпросмотр
+python3 tools/tune.py apply --id animations --id private_dns --yes      # выполнить и записать
+python3 tools/tune.py apply --id standby --package com.facebook.katana --yes
+python3 tools/tune.py revert --id private_dns --yes
+```
+Доступно: шкалы анимаций, DNS-блокировка рекламы, фоновое сканирование Wi-Fi/Bluetooth, «убийца фантомных процессов» и пер-приложенческие ограничения (standby bucket, AppOps). Каждый твик сообщает риск, печатает точную команду, проверяет применённое значение и попадает в `backups/actions.json`, поэтому `restore.sh` откатывает и его.
 
 ### Запуск тестов
 ```bash

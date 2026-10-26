@@ -60,7 +60,7 @@ The agent never decides from memory: a deterministic planner cross-references yo
 | **1** | **Snapshot & backup** | `tools/audit.py snapshot before` records RAM, packages and top processes; settings and package lists are dumped to `backups/`. |
 | **2** | **Deterministic plan** | `tools/plan.py` cross-references the installed packages against `safety/known_bloatware.json` and refuses anything in `safety/bootloop_blacklist.json`. The agent presents that table for approval instead of inventing package names. |
 | **3** | **Execute & log** | Each approved change is executed and immediately recorded with `tools/audit.py log-action`, including its exact reverse command. |
-| **4** | **Tune** | Standby buckets, animation scales, OEM ad flags, cache trim and ART compilation &mdash; all optional, all logged. |
+| **4** | **Tune** | Standby buckets, AppOps, Private DNS, animation scales, cache trim and ART compilation &mdash; all optional, all previewed before they run, all logged. |
 | **5** | **Report & reversal** | `compare` prints the summary card and writes `backups/report.html`; `restore-script` regenerates `backups/restore.sh` from the log. |
 
 ---
@@ -218,19 +218,22 @@ cleanyourdroid/
 ├── CLAUDE.md                  # Claude Code entry point (points at AGENTS.md)
 ├── GEMINI.md                  # Gemini CLI entry point (points at AGENTS.md)
 ├── PROMPT.md                  # 5-stage interactive user prompt
+├── CONTRIBUTING.md            # Database rules, device profiles, house rules
 ├── README.md                  # English documentation
 ├── README.ru.md               # Russian documentation
 ├── safety/
-│   ├── bootloop_blacklist.json # Hard-blocked critical system packages
+│   ├── bootloop_blacklist.json # Hard-blocked packages plus wildcard families
 │   └── known_bloatware.json    # Curated database of verified bloatware
 ├── tools/
 │   ├── adbkit.py              # Shared ADB plumbing (device selection, errors)
 │   ├── audit.py               # Snapshots, action log, reversal script, HTML report
-│   └── plan.py                # Deterministic package plan against both databases
+│   ├── plan.py                # Deterministic package plan against both databases
+│   └── tune.py                # Rootless tuning: standby, AppOps, DNS, scales
 ├── tests/
 │   ├── fake_adb.py            # Stand-in adb, so tests run without a phone
 │   └── test_tools.py          # End-to-end tests (python -m unittest discover -s tests)
 └── devices/
+    ├── _template.md           # Device profile template for PRs
     └── xiaomi/
         └── poco-f5-marble.md  # Reference device benchmark & config
 ```
@@ -260,6 +263,17 @@ python3 tools/audit.py compare before after
 ```
 
 The resulting `./backups/report.html` is an interactive dark-mode bento dashboard that only claims what was measured or logged.
+
+### `tools/tune.py` &mdash; the part that is not about packages
+```bash
+python3 tools/tune.py list                  # every tweak, what it changes, what it costs
+python3 tools/tune.py status                # current values on the phone
+python3 tools/tune.py apply --id animations --id private_dns            # dry run
+python3 tools/tune.py apply --id animations --id private_dns --yes      # execute + log
+python3 tools/tune.py apply --id standby --package com.facebook.katana --yes
+python3 tools/tune.py revert --id private_dns --yes
+```
+Available tweaks: animation scales, Private DNS ad blocking, background Wi-Fi/Bluetooth scanning, the phantom-process killer, and per-app standby bucket / AppOps restrictions. Every tweak states its risk, prints the exact command, verifies the read-back value, and lands in `backups/actions.json` so `restore.sh` undoes it too.
 
 ### Running the tests
 ```bash

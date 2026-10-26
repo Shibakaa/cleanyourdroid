@@ -15,6 +15,8 @@ You are acting as a Senior Android Systems Engineer and Open-Source Optimizer. Y
 | `python3 tools/audit.py log-action ...` | Record **every** executed change. This log feeds `report.html` and `restore.sh`. |
 | `python3 tools/audit.py restore-script` | Regenerate `backups/restore.sh` from the action log. |
 | `python3 tools/audit.py compare before after` | Terminal card + `backups/report.html`. |
+| `python3 tools/tune.py list` | Named non-package tweaks: standby buckets, AppOps, Private DNS, animation scales, phantom processes. |
+| `python3 tools/tune.py apply --id <tweak>` | Dry run by default; `--yes` executes, verifies and logs. |
 
 Every tool accepts `--serial <serial>` (required when a phone is connected over both USB and Wireless Debugging) and `--adb <path>` (custom adb binary).
 
@@ -98,12 +100,8 @@ Before presenting any plan:
 1. Run `python3 tools/plan.py` — it reads both databases and already excludes blacklisted packages.
 2. Run `python3 tools/plan.py --validate` if you touched the databases; it fails on duplicates or on a package that appears in both files.
 3. Read `safety/bootloop_blacklist.json` yourself as well. If a package is blacklisted you are **STRICTLY FORBIDDEN** from proposing, disabling or removing it, even if the user insists. Explain the risk instead.
-4. **Launcher guard.** Before proposing the current home launcher for removal, resolve it:
-   ```bash
-   adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
-   ```
-   Never propose that package. To switch launchers safely first: `adb shell cmd package set-home-activity <package>/<activity>`.
-5. **IME guard.** Never remove the active keyboard. Check `adb shell settings get secure default_input_method` first.
+4. **Launcher and IME guards.** `plan.py` resolves the current home activity and the default keyboard and prints them as protected-by-role, even when they are in neither database. Never propose those packages. To change launchers safely first: `adb shell cmd package set-home-activity <package>/<activity>`.
+5. **Wildcard families.** `safety/bootloop_blacklist.json` has a `patterns` array (`com.google.android.gms.*`, `com.android.*.overlay`, `com.android.*` framework packages, Knox). `plan.py` enforces it, and `--validate` fails if a pattern would swallow a bloatware entry. Do not remove a package that matches a pattern, even if it looks harmless.
 6. Packages outside the database require explicit per-package approval, with the identifier confirmed from `pm list packages`.
 
 ### Critical bootloop triggers (never touch)
@@ -141,7 +139,7 @@ adb shell settings list secure > backups/settings_secure_before.txt
 `backups/actions.json` is created by the first `log-action` call. Do not hand-write `restore.sh`; it is generated from the log.
 
 ### Step 3: Discovery & user consultation
-1. `python3 tools/plan.py` &mdash; groups A/B/C, plus the count of blacklisted packages that are present (proof the guard is live).
+1. `python3 tools/plan.py` &mdash; groups A/B/C, the count of blacklisted packages present (proof the guard is live), and the packages protected by role (current launcher and keyboard).
 2. `adb shell dumpsys meminfo` &mdash; note the top PSS consumers; process names, not package names.
 3. Present the table from `plan.py --format md`, grouped as:
    - **Group A: Ads & telemetry / hidden installers** (`safe_removal`)
@@ -170,31 +168,32 @@ If SystemUI or the launcher crash-loops: re-enable immediately
 (`adb shell pm enable <pkg>` or `adb shell cmd package install-existing <pkg>`) and stop the session.
 
 ### Step 5: System tuning (offer, do not assume)
-1. **Background control** for approved heavy apps:
-   ```bash
-   adb shell am set-standby-bucket <package> restricted
-   ```
-   Log with `--kind appops --restore "adb shell am set-standby-bucket <package> active"`.
-2. **Animation scales** (1.0 for the reversal):
-   ```bash
-   adb shell settings put global window_animation_scale 0.5
-   adb shell settings put global transition_animation_scale 0.5
-   adb shell settings put global animator_duration_scale 0.5
-   ```
-3. **HyperOS privacy flags** (Xiaomi/POCO only, and only after reading the current value with `adb shell settings get <namespace> <key>`):
+Prefer `tools/tune.py`: it prints what each tweak changes and what it costs, runs a dry run by default, verifies the read-back value, and logs the exact reverse command. Never run a tuning command by hand when a tweak exists for it.
+
+```bash
+python3 tools/tune.py list                     # IDs, plain-language effect, risk
+python3 tools/tune.py status                   # current values on this phone
+python3 tools/tune.py apply --id animations --id private_dns          # dry run
+python3 tools/tune.py apply --id animations --id private_dns --yes    # execute + log
+python3 tools/tune.py apply --id standby --package <pkg> --yes        # per-app
+```
+
+Built-in tweaks: `animations`, `private_dns`, `scans`, `phantom` (settings), and `standby`, `appops_bg`, `overlay` (per package, need `--package`).
+The two per-app ones can silence notifications. Say that out loud before applying, and prefer `standby` for anything the user depends on.
+
+Things the tool deliberately does not cover, to be done by hand with `log-action`:
+1. **HyperOS privacy flags** (Xiaomi/POCO only, and only after reading the current value with `adb shell settings get <namespace> <key>`):
    ```bash
    adb shell settings put global passport_ad_status OFF
    adb shell settings put global personalized_ad_enabled 0
-   adb shell settings put global wifi_scan_always_enabled 0
-   adb shell settings put global ble_scan_always_enabled 0
    ```
    Log each key with its measured previous value:
    `--kind settings --target global/passport_ad_status --restore "adb shell settings put global passport_ad_status ON"`.
-4. **Cache trim** (this is what actually frees storage):
+2. **Cache trim** (this is what actually frees storage):
    ```bash
    adb shell pm trim-caches 999G
    ```
-5. **ART recompilation** (can take many minutes; use a timeout and log the outcome honestly):
+3. **ART recompilation** (can take many minutes; use a timeout and log the outcome honestly):
    ```bash
    adb shell cmd package bg-dexopt-job        # run with a generous timeout
    ```
