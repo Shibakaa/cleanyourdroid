@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Exhaustive blacklist of critical Android and OEM packages that must NEVER be uninstalled or disabled. Touching these packages causes bootloops, soft-bricks, broken telephony, or unusable system UI.",
   "categories": {
     "global": [
@@ -325,5 +325,37 @@
         "reason": "Settings search index and suggestion provider on Pixel. Disabling it leaves Settings search empty and breaks some quick-setting flows."
       }
     ]
-  }
+  },
+  "patterns": [
+    {
+      "pattern": "com.google.android.gms.*",
+      "risk_level": "CRITICAL_BREAKAGE",
+      "reason": "Play Services modules (auth, location, ML, cast). They ship as separate packages and any one of them being disabled breaks Play Services for every app."
+    },
+    {
+      "pattern": "com.google.android.gsf*",
+      "risk_level": "CRITICAL_BREAKAGE",
+      "reason": "Google Services Framework variants. Removing them breaks Google account authentication."
+    },
+    {
+      "pattern": "com.android.*.overlay",
+      "risk_level": "CRITICAL_BREAKAGE",
+      "reason": "Resource overlays applied to SystemUI and framework packages. Disabling one produces resource-not-found crashes in the status bar and lockscreen."
+    },
+    {
+      "pattern": "com.miui.*.overlay",
+      "risk_level": "CRITICAL_BREAKAGE",
+      "reason": "HyperOS/MIUI resource overlays for system UI. Same failure mode as above."
+    },
+    {
+      "pattern": "com.samsung.android.knox.*",
+      "risk_level": "BOOTLOOP",
+      "reason": "Knox security stack. Disabling a subunit invalidates hardware key attestation on the next boot."
+    },
+    {
+      "pattern": "android.*",
+      "risk_level": "BOOTLOOP",
+      "reason": "Framework, APEX and extension packages (android.ext.shared, android.apex.*). Never a bloatware candidate."
+    }
+  ]
 }
