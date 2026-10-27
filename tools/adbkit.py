@@ -3,7 +3,7 @@
 
 One place for binary discovery, device selection and user-facing error
 messages, so ``audit.py`` and ``plan.py`` always talk to the phone the same
-way. Zero external dependencies (Python 3.8+ stdlib only).
+way. Zero external dependencies (Python 3.10+ stdlib only).
 """
 
 from __future__ import annotations

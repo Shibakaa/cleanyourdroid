@@ -5,15 +5,22 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: py${{ matrix.python }} on ${{ matrix.os }}
+    # Pinned on purpose: `ubuntu-latest` moved to Ubuntu 26.04, where
+    # actions/setup-python ships no prebuilt interpreter for older versions, so
+    # the job failed before a single test ran.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python: ["3.8", "3.12"]
+        os: [ubuntu-24.04, windows-latest]
+        python: ["3.10", "3.13"]
 
     steps:
       - uses: actions/checkout@v4

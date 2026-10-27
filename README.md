@@ -68,7 +68,7 @@ The agent never decides from memory: a deterministic planner cross-references yo
 ## Quick Start
 
 ### 1. Prerequisites
-- A computer with **Python 3.8+** and **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)). No pip install, no virtualenv: stdlib only.
+- A computer with **Python 3.10+** and **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)). No pip install, no virtualenv: stdlib only (CI covers 3.10 and 3.13 on Linux and Windows).
 - Any AI coding tool: [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini), [Cursor](https://cursor.sh), or [Windsurf](https://codeium.com/windsurf).
 
 ### 2. Enable Developer Options on Your Phone

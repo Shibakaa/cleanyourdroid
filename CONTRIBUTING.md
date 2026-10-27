@@ -9,7 +9,7 @@ python -m unittest discover -s tests -v   # 17 tests, no phone required
 python tools/plan.py --validate           # database integrity
 ```
 
-Both run in CI on Python 3.8 and 3.12, Windows and Linux.
+Both run in CI on Python 3.10 and 3.13, Windows and Linux.
 
 ## What we need most
 

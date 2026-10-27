@@ -68,7 +68,7 @@
 ## Быстрый старт
 
 ### 1. Подготовка
-- Компьютер с **Python 3.8+** и **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)). Без pip и virtualenv: только стандартная библиотека.
+- Компьютер с **Python 3.10+** и **ADB** ([Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)). Без pip и virtualenv: только стандартная библиотека (в CI проверяются 3.10 и 3.13 на Linux и Windows).
 - Любой AI-агент для разработки: [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini), [Cursor](https://cursor.sh) или [Windsurf](https://codeium.com/windsurf).
 
 ### 2. Включение параметров разработчика на смартфоне
